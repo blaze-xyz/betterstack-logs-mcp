@@ -1,0 +1,27 @@
+{
+  "name": "mcp-template-ts",
+  "version": "1.0.0",
+  "description": "MCP server template for TypeScript",
+  "license": "MIT",
+  "author": "Better Stack (https://betterstack.com)",
+  "type": "module",
+  "bin": {
+    "mcp-template-ts": "dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc && shx chmod +x dist/*.js",
+    "prepare": "npm run build",
+    "watch": "tsc --watch"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.6.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "shx": "^0.3.4",
+    "typescript": "^5.7.3"
+  }
+}
