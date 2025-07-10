@@ -1,12 +1,12 @@
 {
-  "name": "mcp-template-ts",
+  "name": "betterstack-logs-mcp",
   "version": "1.0.0",
-  "description": "MCP server template for TypeScript",
+  "description": "MCP server for querying and analyzing Betterstack logs",
   "license": "MIT",
-  "author": "Better Stack (https://betterstack.com)",
+  "author": "Blaze",
   "type": "module",
   "bin": {
-    "mcp-template-ts": "dist/index.js"
+    "betterstack-logs-mcp": "dist/index.js"
   },
   "files": [
     "dist"
@@ -14,14 +14,20 @@
   "scripts": {
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
-    "watch": "tsc --watch"
+    "watch": "tsc --watch",
+    "dev": "tsc --watch"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.6.0",
-    "zod": "^3.24.2"
+    "zod": "^3.24.2",
+    "axios": "^1.7.2",
+    "dotenv": "^16.4.5",
+    "p-limit": "^5.0.0",
+    "csv-stringify": "^6.5.1"
   },
   "devDependencies": {
     "shx": "^0.3.4",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "@types/node": "^20.12.7"
   }
 }
