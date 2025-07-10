@@ -22,7 +22,7 @@ export class BetterstackClient {
   constructor(config: BetterstackConfig) {
     this.config = config;
     
-    // Telemetry API client for sources, groups, etc.
+    // Telemetry API client for source management (Bearer token auth)
     this.telemetryClient = axios.create({
       baseURL: config.telemetryEndpoint,
       timeout: 30000,
@@ -33,13 +33,16 @@ export class BetterstackClient {
       }
     });
 
-    // Query API client for ClickHouse queries
+    // ClickHouse Query client for log operations (basic auth)
     this.queryClient = axios.create({
       baseURL: config.queryEndpoint,
+      auth: {
+        username: config.clickhouseUsername,
+        password: config.clickhousePassword
+      },
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${config.apiToken}`,
         'User-Agent': 'betterstack-logs-mcp/1.0.0'
       }
     });
@@ -75,11 +78,34 @@ export class BetterstackClient {
 
   async testConnection(): Promise<boolean> {
     try {
-      // Test telemetry API connectivity by listing sources
-      await this.telemetryClient.get('/api/v1/sources', {
-        params: { page: 1, per_page: 1 }
-      });
-      return true;
+      // Test both authentication systems
+      const [telemetryTest, clickhouseTest] = await Promise.allSettled([
+        // Test Telemetry API (Bearer token)
+        this.telemetryClient.get('/api/v1/sources', {
+          params: { page: 1, per_page: 1 }
+        }),
+        // Test ClickHouse (basic auth)
+        this.queryClient.post('/', {
+          query: 'SELECT 1',
+          format: 'JSON'
+        })
+      ]);
+
+      const telemetrySuccess = telemetryTest.status === 'fulfilled';
+      const clickhouseSuccess = clickhouseTest.status === 'fulfilled';
+
+      if (telemetrySuccess && clickhouseSuccess) {
+        console.error('✅ Both Telemetry API and ClickHouse connections successful');
+        return true;
+      } else {
+        if (!telemetrySuccess) {
+          console.error('❌ Telemetry API connection failed:', telemetryTest.reason);
+        }
+        if (!clickhouseSuccess) {
+          console.error('❌ ClickHouse connection failed:', clickhouseTest.reason);
+        }
+        return false;
+      }
     } catch (error) {
       console.error('Connection test failed:', error);
       return false;

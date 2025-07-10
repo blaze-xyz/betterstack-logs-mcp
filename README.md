@@ -22,17 +22,32 @@ An MCP (Model Context Protocol) server that enables AI assistants to query and a
 
 ### Environment Variables
 
+Betterstack requires two different authentication methods:
+
 Copy `.env.example` to `.env` and configure:
 
 ```bash
+# ClickHouse Database Credentials (for log queries)
+BETTERSTACK_CLICKHOUSE_USERNAME=your_clickhouse_username
+BETTERSTACK_CLICKHOUSE_PASSWORD=your_clickhouse_password
+
+# API Token (for source management)
 BETTERSTACK_API_TOKEN=your_api_token_from_betterstack_dashboard
-BETTERSTACK_DEFAULT_SOURCE_GROUP=production  # Optional
+
+# Optional
+BETTERSTACK_DEFAULT_SOURCE_GROUP=production
 ```
 
-**Getting Your API Token:**
-1. Go to [Betterstack API Tokens](https://betterstack.com/settings/api-tokens/0)
-2. Select your team
-3. Create or copy an existing Telemetry API token
+**Getting Your Credentials:**
+
+1. **ClickHouse Credentials** (for log queries):
+   - In Betterstack dashboard: **Dashboards** → **Connect remotely** → **Create connection**
+   - Save the generated username and password
+
+2. **API Token** (for source management):
+   - Go to [Betterstack API Tokens](https://betterstack.com/settings/api-tokens/0)
+   - Select your team  
+   - Create or copy an existing **Telemetry API** token
 
 ### Claude Desktop Configuration
 
@@ -45,6 +60,8 @@ Add to your `claude_desktop_config.json`:
       "command": "node",
       "args": ["path/to/betterstack-logs-mcp/dist/index.js"],
       "env": {
+        "BETTERSTACK_CLICKHOUSE_USERNAME": "your_clickhouse_username",
+        "BETTERSTACK_CLICKHOUSE_PASSWORD": "your_clickhouse_password",
         "BETTERSTACK_API_TOKEN": "your_api_token_here",
         "BETTERSTACK_DEFAULT_SOURCE_GROUP": "production"
       }
