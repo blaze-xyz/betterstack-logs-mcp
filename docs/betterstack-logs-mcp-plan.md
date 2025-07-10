@@ -27,11 +27,31 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
    - Query builder for ClickHouse SQL syntax
    - Response parsing and formatting
 
-3. **Available Tools**
-   - `query_logs`: Execute custom ClickHouse SQL queries
-   - `search_logs`: Simple text search across logs
+3. **Data Sources Architecture**
+   Betterstack provides access to three distinct data sources:
+   
+   - **Recent Logs**: Real-time logs from the last few hours/days
+     - Accessed via `remote()` function with source name
+     - Optimal for debugging current issues
+     - Lower latency queries
+   
+   - **Historical Logs**: Archived logs for long-term analysis
+     - Accessed via `remote()` function with archive suffix
+     - Useful for trend analysis and historical debugging
+     - May have higher query latency
+   
+   - **Metrics**: Aggregated performance and system metrics
+     - Accessed via separate metrics tables
+     - Ideal for performance monitoring and alerting
+     - Pre-aggregated for faster queries
+
+4. **Available Tools**
+   - `query_logs`: Execute custom ClickHouse SQL queries across any data source
+   - `search_logs`: Simple text search across recent or historical logs
    - `get_recent_logs`: Fetch recent logs with optional filters
-   - `analyze_errors`: Find and analyze error patterns
+   - `get_historical_logs`: Query archived logs with date ranges
+   - `query_metrics`: Fetch and analyze performance metrics
+   - `analyze_errors`: Find and analyze error patterns across data sources
    - `export_logs`: Export logs in various formats (JSON, CSV)
 
 ## Implementation Steps
@@ -51,18 +71,33 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
 ### Phase 3: Log Query Tools
 1. **query_logs tool**
    - Accept ClickHouse SQL queries
+   - Support data source selection (recent, historical, metrics)
    - Execute queries against Betterstack API
    - Return formatted results
    
 2. **search_logs tool**
    - Simple text search interface
+   - Allow selection between recent and historical logs
    - Convert to ClickHouse SQL behind the scenes
    - Support for time ranges and filters
 
 3. **get_recent_logs tool**
    - Fetch logs from last N minutes/hours
+   - Query recent logs data source
    - Optional filtering by severity, source, etc.
    - Pagination support
+
+4. **get_historical_logs tool**
+   - Query archived logs with specific date ranges
+   - Handle archive table naming conventions
+   - Support for large time range queries
+   - Implement result streaming for large datasets
+
+5. **query_metrics tool**
+   - Access pre-aggregated metrics data
+   - Support common metric queries (CPU, memory, response times)
+   - Enable time-series analysis
+   - Return data suitable for visualization
 
 ### Phase 4: Analysis Tools
 1. **analyze_errors tool**
@@ -81,6 +116,36 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
 3. User documentation with examples
 4. Configuration guide
 
+## Data Source Handling
+
+### Table Naming Conventions
+Betterstack uses specific naming patterns for different data sources:
+
+- **Recent Logs**: `t{source_id}_{source_name}_logs`
+- **Historical Logs**: `t{source_id}_{source_name}_logs_archive`
+- **Metrics**: `t{source_id}_{source_name}_metrics`
+
+### Query Patterns
+```sql
+-- Recent logs query
+SELECT dt, raw FROM remote(t123456_myapp_logs) 
+WHERE dt >= now() - INTERVAL 1 HOUR
+
+-- Historical logs query
+SELECT dt, raw FROM remote(t123456_myapp_logs_archive) 
+WHERE dt BETWEEN '2024-01-01' AND '2024-01-31'
+
+-- Metrics query
+SELECT dt, metric_name, value FROM remote(t123456_myapp_metrics)
+WHERE metric_name = 'cpu_usage' AND dt >= now() - INTERVAL 1 DAY
+```
+
+### Data Source Selection Logic
+The MCP server will intelligently route queries based on:
+1. Time range requested (recent vs. historical threshold)
+2. Explicit data source parameter
+3. Query type (logs vs. metrics)
+
 ## Configuration Requirements
 
 ### Environment Variables
@@ -89,6 +154,7 @@ BETTERSTACK_USERNAME=<username>
 BETTERSTACK_PASSWORD=<password>
 BETTERSTACK_ENDPOINT=https://eu-nbg-2-connect.betterstackdata.com
 BETTERSTACK_SOURCE_ID=<source_id>
+BETTERSTACK_SOURCE_NAME=<source_name>
 ```
 
 ### MCP Configuration (claude_desktop_config.json)
@@ -101,7 +167,8 @@ BETTERSTACK_SOURCE_ID=<source_id>
       "env": {
         "BETTERSTACK_USERNAME": "<username>",
         "BETTERSTACK_PASSWORD": "<password>",
-        "BETTERSTACK_SOURCE_ID": "<source_id>"
+        "BETTERSTACK_SOURCE_ID": "<source_id>",
+        "BETTERSTACK_SOURCE_NAME": "<source_name>"
       }
     }
   }
@@ -166,8 +233,8 @@ BETTERSTACK_SOURCE_ID=<source_id>
 
 - Phase 1 (Repository Setup): 1 hour
 - Phase 2 (Core MCP Server): 2-3 hours
-- Phase 3 (Log Query Tools): 3-4 hours
+- Phase 3 (Log Query Tools): 5-6 hours (increased due to multiple data sources)
 - Phase 4 (Analysis Tools): 2-3 hours
 - Phase 5 (Testing & Documentation): 2-3 hours
 
-Total: 10-14 hours of development time
+Total: 12-16 hours of development time
