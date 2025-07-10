@@ -28,7 +28,7 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
    - Response parsing and formatting
 
 3. **Data Sources Architecture**
-   Betterstack provides access to three distinct data sources:
+   Betterstack provides access to three distinct data types:
    
    - **Recent Logs**: Real-time logs from the last few hours/days
      - Accessed via `remote()` function with source name
@@ -45,13 +45,45 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
      - Ideal for performance monitoring and alerting
      - Pre-aggregated for faster queries
 
-4. **Available Tools**
-   - `query_logs`: Execute custom ClickHouse SQL queries across any data source
-   - `search_logs`: Simple text search across recent or historical logs
+4. **Source Management Architecture**
+   Betterstack organizes logs into sources and source groups:
+   
+   - **Sources**: Individual log streams (e.g., website, app, server)
+     - Each source has a unique ID and name
+     - Can be queried individually or in combination
+   
+   - **Source Groups**: Collections of related sources (e.g., "production", "staging")
+     - Groups multiple sources for unified querying
+     - Simplifies searching across related services
+   
+   - **Dynamic Discovery**: 
+     - Query available sources via Betterstack API
+     - List source groups for easy selection
+     - Cache source metadata for performance
+
+5. **Available Tools**
+   
+   **Source Management Tools:**
+   - `list_sources`: Get all available log sources with IDs and names
+   - `list_source_groups`: Get all configured source groups
+   - `get_source_info`: Get detailed information about a specific source
+   
+   **Query Tools:**
+   - `query_logs`: Execute custom ClickHouse SQL queries
+     - Accepts source IDs, source group names, or defaults to configured default
+     - Supports querying multiple sources simultaneously
+   - `search_logs`: Simple text search across logs
+     - Intelligent source selection based on query context
+     - Can specify sources or use defaults
    - `get_recent_logs`: Fetch recent logs with optional filters
+     - Defaults to configured source group
+     - Can override with specific sources
    - `get_historical_logs`: Query archived logs with date ranges
    - `query_metrics`: Fetch and analyze performance metrics
-   - `analyze_errors`: Find and analyze error patterns across data sources
+   
+   **Analysis Tools:**
+   - `analyze_errors`: Find and analyze error patterns
+     - Can focus on specific sources or search across all
    - `export_logs`: Export logs in various formats (JSON, CSV)
 
 ## Implementation Steps
@@ -68,34 +100,54 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
 3. Set up HTTP client with proper error handling
 4. Implement connection testing tool
 
-### Phase 3: Log Query Tools
+### Phase 3: Source Management & Query Tools
+
+**Source Management Tools:**
+1. **list_sources tool**
+   - Query Betterstack API for available sources
+   - Cache results for performance
+   - Return source IDs, names, and metadata
+
+2. **list_source_groups tool**
+   - Fetch configured source groups
+   - Show which sources belong to each group
+   - Support filtering by group attributes
+
+3. **get_source_info tool**
+   - Get detailed information about specific sources
+   - Include data retention, volume statistics
+   - Show recent activity indicators
+
+**Query Tools:**
 1. **query_logs tool**
    - Accept ClickHouse SQL queries
-   - Support data source selection (recent, historical, metrics)
+   - Support source/group selection via parameters
+   - Handle multi-source queries with UNION operations
    - Execute queries against Betterstack API
    - Return formatted results
    
 2. **search_logs tool**
    - Simple text search interface
-   - Allow selection between recent and historical logs
+   - Intelligent source selection based on context
+   - Allow explicit source/group override
    - Convert to ClickHouse SQL behind the scenes
    - Support for time ranges and filters
 
 3. **get_recent_logs tool**
    - Fetch logs from last N minutes/hours
-   - Query recent logs data source
+   - Use configured default sources/groups
    - Optional filtering by severity, source, etc.
    - Pagination support
 
 4. **get_historical_logs tool**
    - Query archived logs with specific date ranges
-   - Handle archive table naming conventions
+   - Handle archive table naming for multiple sources
    - Support for large time range queries
    - Implement result streaming for large datasets
 
 5. **query_metrics tool**
    - Access pre-aggregated metrics data
-   - Support common metric queries (CPU, memory, response times)
+   - Support source-specific metric queries
    - Enable time-series analysis
    - Return data suitable for visualization
 
@@ -127,17 +179,30 @@ Betterstack uses specific naming patterns for different data sources:
 
 ### Query Patterns
 ```sql
--- Recent logs query
-SELECT dt, raw FROM remote(t123456_myapp_logs) 
+-- Single source query
+SELECT dt, raw FROM remote(t123456_website_logs) 
 WHERE dt >= now() - INTERVAL 1 HOUR
 
+-- Multi-source query (using UNION)
+SELECT dt, raw, 'website' as source FROM remote(t123456_website_logs) 
+WHERE dt >= now() - INTERVAL 1 HOUR
+UNION ALL
+SELECT dt, raw, 'app' as source FROM remote(t789012_app_logs) 
+WHERE dt >= now() - INTERVAL 1 HOUR
+UNION ALL
+SELECT dt, raw, 'server' as source FROM remote(t345678_server_logs) 
+WHERE dt >= now() - INTERVAL 1 HOUR
+
+-- Source group query (production = website + app + server)
+-- The MCP will automatically expand source groups into UNION queries
+
 -- Historical logs query
-SELECT dt, raw FROM remote(t123456_myapp_logs_archive) 
+SELECT dt, raw FROM remote(t123456_website_logs_archive) 
 WHERE dt BETWEEN '2024-01-01' AND '2024-01-31'
 
 -- Metrics query
-SELECT dt, metric_name, value FROM remote(t123456_myapp_metrics)
-WHERE metric_name = 'cpu_usage' AND dt >= now() - INTERVAL 1 DAY
+SELECT dt, metric_name, value FROM remote(t123456_website_metrics)
+WHERE metric_name = 'response_time' AND dt >= now() - INTERVAL 1 DAY
 ```
 
 ### Data Source Selection Logic
@@ -153,8 +218,8 @@ The MCP server will intelligently route queries based on:
 BETTERSTACK_USERNAME=<username>
 BETTERSTACK_PASSWORD=<password>
 BETTERSTACK_ENDPOINT=https://eu-nbg-2-connect.betterstackdata.com
-BETTERSTACK_SOURCE_ID=<source_id>
-BETTERSTACK_SOURCE_NAME=<source_name>
+BETTERSTACK_DEFAULT_SOURCE_GROUP=production  # Optional: default source group
+BETTERSTACK_DEFAULT_SOURCES=123456,789012     # Optional: comma-separated source IDs
 ```
 
 ### MCP Configuration (claude_desktop_config.json)
@@ -167,13 +232,40 @@ BETTERSTACK_SOURCE_NAME=<source_name>
       "env": {
         "BETTERSTACK_USERNAME": "<username>",
         "BETTERSTACK_PASSWORD": "<password>",
-        "BETTERSTACK_SOURCE_ID": "<source_id>",
-        "BETTERSTACK_SOURCE_NAME": "<source_name>"
+        "BETTERSTACK_DEFAULT_SOURCE_GROUP": "production"
       }
     }
   }
 }
 ```
+
+### Source Selection Logic
+1. If a tool is called with explicit source/group parameters, use those
+2. If no sources specified, use the default source group (if configured)
+3. If no default source group, use default sources (if configured)
+4. If no defaults configured, prompt user to select sources
+5. AI can intelligently suggest sources based on the query context
+
+### AI Source Intelligence
+The MCP server enables AI assistants to intelligently work with sources:
+
+1. **Contextual Source Selection**
+   - When user mentions "website errors", AI can focus on website source
+   - For "production issues", AI uses the production source group
+   - Generic queries default to configured source group
+
+2. **Source Discovery Flow**
+   - AI can call `list_sources` to show available options
+   - Use `list_source_groups` to understand logical groupings
+   - Suggest appropriate sources based on query type
+
+3. **Conversation Examples**
+   - User: "Show me recent errors"
+     - AI: Uses default source group (production)
+   - User: "Show me website errors from last hour"
+     - AI: Automatically selects website source
+   - User: "What sources are available?"
+     - AI: Calls `list_sources` and presents options
 
 ## Security Considerations
 
@@ -233,8 +325,10 @@ BETTERSTACK_SOURCE_NAME=<source_name>
 
 - Phase 1 (Repository Setup): 1 hour
 - Phase 2 (Core MCP Server): 2-3 hours
-- Phase 3 (Log Query Tools): 5-6 hours (increased due to multiple data sources)
+- Phase 3 (Source Management & Query Tools): 6-8 hours
+  - Source management tools: 2-3 hours
+  - Query tools with multi-source support: 4-5 hours
 - Phase 4 (Analysis Tools): 2-3 hours
-- Phase 5 (Testing & Documentation): 2-3 hours
+- Phase 5 (Testing & Documentation): 3-4 hours
 
-Total: 12-16 hours of development time
+Total: 14-19 hours of development time
