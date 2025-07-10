@@ -3,9 +3,9 @@ import { config } from 'dotenv';
 config();
 
 export interface BetterstackConfig {
-  username: string;
-  password: string;
-  endpoint: string;
+  apiToken: string;
+  telemetryEndpoint: string;
+  queryEndpoint: string;
   defaultSourceGroup?: string;
   defaultSources?: string[];
   cacheTtlSeconds: number;
@@ -17,18 +17,18 @@ function parseDefaultSources(sources?: string): string[] | undefined {
 }
 
 export function loadConfig(): BetterstackConfig {
-  const username = process.env.BETTERSTACK_USERNAME;
-  const password = process.env.BETTERSTACK_PASSWORD;
-  const endpoint = process.env.BETTERSTACK_ENDPOINT || 'https://eu-nbg-2-connect.betterstackdata.com';
+  const apiToken = process.env.BETTERSTACK_API_TOKEN;
+  const telemetryEndpoint = process.env.BETTERSTACK_TELEMETRY_ENDPOINT || 'https://telemetry.betterstack.com';
+  const queryEndpoint = process.env.BETTERSTACK_QUERY_ENDPOINT || 'https://eu-nbg-2-connect.betterstackdata.com';
   
-  if (!username || !password) {
-    throw new Error('BETTERSTACK_USERNAME and BETTERSTACK_PASSWORD environment variables are required');
+  if (!apiToken) {
+    throw new Error('BETTERSTACK_API_TOKEN environment variable is required');
   }
 
   return {
-    username,
-    password,
-    endpoint,
+    apiToken,
+    telemetryEndpoint,
+    queryEndpoint,
     defaultSourceGroup: process.env.BETTERSTACK_DEFAULT_SOURCE_GROUP,
     defaultSources: parseDefaultSources(process.env.BETTERSTACK_DEFAULT_SOURCES),
     cacheTtlSeconds: parseInt(process.env.CACHE_TTL_SECONDS || '300', 10)

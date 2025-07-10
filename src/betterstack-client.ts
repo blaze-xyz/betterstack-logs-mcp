@@ -12,7 +12,8 @@ import {
 } from './types.js';
 
 export class BetterstackClient {
-  private httpClient: AxiosInstance;
+  private telemetryClient: AxiosInstance;
+  private queryClient: AxiosInstance;
   private sourcesCache: { data: Source[]; timestamp: number } | null = null;
   private sourceGroupsCache: { data: SourceGroup[]; timestamp: number } | null = null;
   private config: BetterstackConfig;
@@ -20,34 +21,46 @@ export class BetterstackClient {
 
   constructor(config: BetterstackConfig) {
     this.config = config;
-    this.httpClient = axios.create({
-      baseURL: config.endpoint,
-      auth: {
-        username: config.username,
-        password: config.password
-      },
+    
+    // Telemetry API client for sources, groups, etc.
+    this.telemetryClient = axios.create({
+      baseURL: config.telemetryEndpoint,
       timeout: 30000,
       headers: {
         'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiToken}`,
+        'User-Agent': 'betterstack-logs-mcp/1.0.0'
+      }
+    });
+
+    // Query API client for ClickHouse queries
+    this.queryClient = axios.create({
+      baseURL: config.queryEndpoint,
+      timeout: 30000,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${config.apiToken}`,
         'User-Agent': 'betterstack-logs-mcp/1.0.0'
       }
     });
 
     // Add response interceptor for error handling
-    this.httpClient.interceptors.response.use(
-      (response) => response,
-      (error) => {
-        if (error.response) {
-          const apiError: BetterstackApiError = {
-            code: error.response.status.toString(),
-            message: error.response.data?.message || error.message,
-            details: error.response.data
-          };
-          throw apiError;
-        }
-        throw error;
+    const errorHandler = (error: any) => {
+      if (error.response) {
+        const apiError: BetterstackApiError = {
+          code: error.response.status.toString(),
+          message: error.response.data?.message || error.message,
+          details: error.response.data
+        };
+        console.error(`Betterstack API Error: ${apiError.code} - ${apiError.message}`, apiError.details);
+        throw apiError;
       }
-    );
+      console.error('Betterstack API Network Error:', error.message);
+      throw error;
+    };
+
+    this.telemetryClient.interceptors.response.use((response) => response, errorHandler);
+    this.queryClient.interceptors.response.use((response) => response, errorHandler);
   }
 
   private isCacheValid(timestamp: number): boolean {
@@ -62,10 +75,13 @@ export class BetterstackClient {
 
   async testConnection(): Promise<boolean> {
     try {
-      // Try a simple query to test connectivity
-      await this.executeQuery('SELECT 1', { limit: 1 });
+      // Test telemetry API connectivity by listing sources
+      await this.telemetryClient.get('/api/v1/sources', {
+        params: { page: 1, per_page: 1 }
+      });
       return true;
     } catch (error) {
+      console.error('Connection test failed:', error);
       return false;
     }
   }
@@ -77,16 +93,20 @@ export class BetterstackClient {
 
     try {
       const response = await this.rateLimiter(() => 
-        this.httpClient.get('/logs/sources')
+        this.telemetryClient.get('/api/v1/sources', {
+          params: {
+            page: 1,
+            per_page: 50
+          }
+        })
       );
       
-      const sources: Source[] = response.data.data || response.data || [];
+      const sources: Source[] = response.data.data || [];
       this.sourcesCache = { data: sources, timestamp: Date.now() };
+      console.error(`Successfully fetched ${sources.length} sources from Betterstack API`);
       return sources;
     } catch (error) {
-      // If API endpoint doesn't exist, return empty array
-      // This will be populated when we can introspect the database
-      console.error('Unable to fetch sources from API, using empty list');
+      console.error('Unable to fetch sources from API:', error);
       return [];
     }
   }
@@ -101,19 +121,12 @@ export class BetterstackClient {
       return this.sourceGroupsCache.data;
     }
 
-    try {
-      const response = await this.rateLimiter(() => 
-        this.httpClient.get('/logs/source-groups')
-      );
-      
-      const groups: SourceGroup[] = response.data.data || response.data || [];
-      this.sourceGroupsCache = { data: groups, timestamp: Date.now() };
-      return groups;
-    } catch (error) {
-      // If API endpoint doesn't exist, return empty array
-      console.error('Unable to fetch source groups from API, using empty list');
-      return [];
-    }
+    // Note: Betterstack doesn't have a dedicated source groups API
+    // Source groups are logical collections we can create from source metadata
+    // For now, return empty array and let users configure groups in environment
+    console.error('Source groups are not supported by Betterstack API - using environment configuration');
+    this.sourceGroupsCache = { data: [], timestamp: Date.now() };
+    return [];
   }
 
   async getSourceGroupInfo(groupName: string): Promise<SourceGroupInfo | null> {
@@ -188,7 +201,7 @@ export class BetterstackClient {
 
     try {
       const response = await this.rateLimiter(() => 
-        this.httpClient.post('/', {
+        this.queryClient.post('/', {
           query: finalQuery,
           format: 'JSON'
         })

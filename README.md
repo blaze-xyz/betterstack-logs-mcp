@@ -25,11 +25,14 @@ An MCP (Model Context Protocol) server that enables AI assistants to query and a
 Copy `.env.example` to `.env` and configure:
 
 ```bash
-BETTERSTACK_USERNAME=your_username
-BETTERSTACK_PASSWORD=your_password
-BETTERSTACK_ENDPOINT=https://eu-nbg-2-connect.betterstackdata.com
+BETTERSTACK_API_TOKEN=your_api_token_from_betterstack_dashboard
 BETTERSTACK_DEFAULT_SOURCE_GROUP=production  # Optional
 ```
+
+**Getting Your API Token:**
+1. Go to [Betterstack API Tokens](https://betterstack.com/settings/api-tokens/0)
+2. Select your team
+3. Create or copy an existing Telemetry API token
 
 ### Claude Desktop Configuration
 
@@ -42,8 +45,7 @@ Add to your `claude_desktop_config.json`:
       "command": "node",
       "args": ["path/to/betterstack-logs-mcp/dist/index.js"],
       "env": {
-        "BETTERSTACK_USERNAME": "your_username",
-        "BETTERSTACK_PASSWORD": "your_password",
+        "BETTERSTACK_API_TOKEN": "your_api_token_here",
         "BETTERSTACK_DEFAULT_SOURCE_GROUP": "production"
       }
     }
