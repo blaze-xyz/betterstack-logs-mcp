@@ -86,7 +86,7 @@ export class BetterstackClient {
     } catch (error) {
       // If API endpoint doesn't exist, return empty array
       // This will be populated when we can introspect the database
-      console.warn('Unable to fetch sources from API, using empty list');
+      console.error('Unable to fetch sources from API, using empty list');
       return [];
     }
   }
@@ -111,7 +111,7 @@ export class BetterstackClient {
       return groups;
     } catch (error) {
       // If API endpoint doesn't exist, return empty array
-      console.warn('Unable to fetch source groups from API, using empty list');
+      console.error('Unable to fetch source groups from API, using empty list');
       return [];
     }
   }

@@ -31,10 +31,10 @@ const server = new McpServer({
 try {
   const isConnected = await client.testConnection();
   if (!isConnected) {
-    console.warn('Warning: Could not establish connection to Betterstack API');
+    console.error('Warning: Could not establish connection to Betterstack API');
   }
 } catch (error) {
-  console.warn('Warning: Connection test failed:', error);
+  console.error('Warning: Connection test failed:', error);
 }
 
 // Register all tool categories
@@ -76,6 +76,6 @@ server.tool(
 const transport = new StdioServerTransport();
 await server.connect(transport);
 
-console.log("Betterstack Logs MCP server running on stdio");
-console.log(`Default source group: ${config.defaultSourceGroup || 'none'}`);
-console.log(`Default sources: ${config.defaultSources?.join(', ') || 'none'}`);
+console.error("Betterstack Logs MCP server running on stdio");
+console.error(`Default source group: ${config.defaultSourceGroup || 'none'}`);
+console.error(`Default sources: ${config.defaultSources?.join(', ') || 'none'}`);
