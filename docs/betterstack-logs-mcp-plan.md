@@ -67,6 +67,7 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
    - `list_sources`: Get all available log sources with IDs and names
    - `list_source_groups`: Get all configured source groups
    - `get_source_info`: Get detailed information about a specific source
+   - `get_source_group_info`: Get detailed information about a specific source group
    
    **Query Tools:**
    - `query_logs`: Execute custom ClickHouse SQL queries
@@ -117,6 +118,13 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
    - Get detailed information about specific sources
    - Include data retention, volume statistics
    - Show recent activity indicators
+
+4. **get_source_group_info tool**
+   - Get detailed information about a specific source group
+   - List all sources within the group with their IDs and names
+   - Show aggregate statistics (total volume, combined retention)
+   - Display group configuration and metadata
+   - Useful for understanding what "production" actually includes
 
 **Query Tools:**
 1. **query_logs tool**
@@ -266,6 +274,10 @@ The MCP server enables AI assistants to intelligently work with sources:
      - AI: Automatically selects website source
    - User: "What sources are available?"
      - AI: Calls `list_sources` and presents options
+   - User: "What's included in the production source group?"
+     - AI: Calls `get_source_group_info('production')` and shows all included sources
+   - User: "How much data is in our production logs?"
+     - AI: Uses `get_source_group_info` to show aggregate statistics
 
 ## Security Considerations
 
