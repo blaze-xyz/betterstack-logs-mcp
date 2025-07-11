@@ -61,13 +61,12 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             }
           ]
         };
-      } catch (error: any) {
-        const errorMessage = error?.message || error?.response?.data?.message || error?.toString() || 'Unknown error';
+      } catch (error) {
         return {
           content: [
             {
               type: "text",
-              text: `❌ Query failed: ${errorMessage}`
+              text: `❌ Query failed: ${error}`
             }
           ]
         };
@@ -142,13 +141,12 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             }
           ]
         };
-      } catch (error: any) {
-        const errorMessage = error?.message || error?.response?.data?.message || error?.toString() || 'Unknown error';
+      } catch (error) {
         return {
           content: [
             {
               type: "text",
-              text: `❌ Search failed: ${errorMessage}`
+              text: `❌ Search failed: ${error}`
             }
           ]
         };
@@ -225,13 +223,12 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             }
           ]
         };
-      } catch (error: any) {
-        const errorMessage = error?.message || error?.response?.data?.message || error?.toString() || 'Unknown error';
+      } catch (error) {
         return {
           content: [
             {
               type: "text",
-              text: `❌ Failed to get recent logs: ${errorMessage}`
+              text: `❌ Failed to get recent logs: ${error}`
             }
           ]
         };
@@ -315,13 +312,12 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             }
           ]
         };
-      } catch (error: any) {
-        const errorMessage = error?.message || error?.response?.data?.message || error?.toString() || 'Unknown error';
+      } catch (error) {
         return {
           content: [
             {
               type: "text",
-              text: `❌ Failed to get historical logs: ${errorMessage}`
+              text: `❌ Failed to get historical logs: ${error}`
             }
           ]
         };
@@ -399,13 +395,12 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             }
           ]
         };
-      } catch (error: any) {
-        const errorMessage = error?.message || error?.response?.data?.message || error?.toString() || 'Unknown error';
+      } catch (error) {
         return {
           content: [
             {
               type: "text",
-              text: `❌ Failed to query metrics: ${errorMessage}`
+              text: `❌ Failed to query metrics: ${error}`
             }
           ]
         };
