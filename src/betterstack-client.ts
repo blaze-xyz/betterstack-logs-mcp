@@ -35,7 +35,7 @@ export class BetterstackClient {
 
     // ClickHouse Query client for log operations (basic auth)
     this.queryClient = axios.create({
-      baseURL: config.queryEndpoint,
+      baseURL: config.clickhouseQueryEndpoint,
       auth: {
         username: config.clickhouseUsername,
         password: config.clickhousePassword

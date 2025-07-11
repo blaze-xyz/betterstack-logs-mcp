@@ -30,6 +30,7 @@ Copy `.env.example` to `.env` and configure:
 # ClickHouse Database Credentials (for log queries)
 BETTERSTACK_CLICKHOUSE_USERNAME=your_clickhouse_username
 BETTERSTACK_CLICKHOUSE_PASSWORD=your_clickhouse_password
+BETTERSTACK_CLICKHOUSE_QUERY_ENDPOINT=your_clickhouse_endpoint_url
 
 # API Token (for source management)
 BETTERSTACK_API_TOKEN=your_api_token_from_betterstack_dashboard
@@ -42,7 +43,7 @@ BETTERSTACK_DEFAULT_SOURCE_GROUP=production
 
 1. **ClickHouse Credentials** (for log queries):
    - In Betterstack dashboard: **Dashboards** → **Connect remotely** → **Create connection**
-   - Save the generated username and password
+   - Save the generated username, password, and endpoint URL
 
 2. **API Token** (for source management):
    - Go to [Betterstack API Tokens](https://betterstack.com/settings/api-tokens/0)
@@ -62,6 +63,7 @@ Add to your `claude_desktop_config.json`:
       "env": {
         "BETTERSTACK_CLICKHOUSE_USERNAME": "your_clickhouse_username",
         "BETTERSTACK_CLICKHOUSE_PASSWORD": "your_clickhouse_password",
+        "BETTERSTACK_CLICKHOUSE_QUERY_ENDPOINT": "your_clickhouse_endpoint_url",
         "BETTERSTACK_API_TOKEN": "your_api_token_here",
         "BETTERSTACK_DEFAULT_SOURCE_GROUP": "production"
       }
