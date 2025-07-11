@@ -238,18 +238,39 @@ export class BetterstackClient {
     }
 
     if (sources.length === 1) {
-      const tableName = dataType === 'historical' ? 
-        sources[0].table_name.replace('_logs', '_s3') : // Historical uses S3
-        sources[0].table_name; // Recent uses the table_name as-is
-      return baseQuery.replace(/FROM\s+\w+/i, `FROM remote(${tableName})`);
+      let tableFunction: string;
+      
+      if (dataType === 'historical') {
+        const s3TableName = sources[0].table_name.replace('_logs', '_s3');
+        tableFunction = `s3Cluster(primary, ${s3TableName})`;
+      } else if (dataType === 'metrics') {
+        const metricsTableName = sources[0].table_name.replace('_logs', '_metrics');
+        tableFunction = `remote(${metricsTableName})`;
+      } else {
+        // Recent logs
+        tableFunction = `remote(${sources[0].table_name})`;
+      }
+      
+      console.error(`Generated table function: ${tableFunction}`);
+      return baseQuery.replace(/FROM\s+(logs|metrics)\b/gi, `FROM ${tableFunction}`);
     }
 
     // Multi-source query using UNION ALL
     const unionQueries = sources.map(source => {
-      const tableName = dataType === 'historical' ? 
-        source.table_name.replace('_logs', '_s3') : 
-        source.table_name;
-      const sourceQuery = baseQuery.replace(/FROM\s+\w+/i, `FROM remote(${tableName})`);
+      let tableFunction: string;
+      
+      if (dataType === 'historical') {
+        const s3TableName = source.table_name.replace('_logs', '_s3');
+        tableFunction = `s3Cluster(primary, ${s3TableName})`;
+      } else if (dataType === 'metrics') {
+        const metricsTableName = source.table_name.replace('_logs', '_metrics');
+        tableFunction = `remote(${metricsTableName})`;
+      } else {
+        // Recent logs
+        tableFunction = `remote(${source.table_name})`;
+      }
+      
+      const sourceQuery = baseQuery.replace(/FROM\s+(logs|metrics)\b/gi, `FROM ${tableFunction}`);
       
       // Add source identifier to SELECT clause
       if (sourceQuery.toLowerCase().includes('select')) {
@@ -262,6 +283,7 @@ export class BetterstackClient {
       return sourceQuery;
     });
 
+    console.error(`Generated multi-source query with ${unionQueries.length} sources`);
     return unionQueries.join(' UNION ALL ');
   }
 
@@ -272,12 +294,23 @@ export class BetterstackClient {
     const sources = await this.resolveSources(options) as (Source & { table_name: string })[];
     const dataType = options.dataType || 'recent';
     
-    let finalQuery = query;
+    // Validate table names
+    sources.forEach(source => {
+      console.error(`Source: ${source.name}, Table: ${source.table_name}, Team ID: ${(source as any).team_id}`);
+      if (!source.table_name || !source.table_name.match(/^t\d+_.*_logs$/)) {
+        console.error(`Warning: Table name '${source.table_name}' doesn't match expected pattern 't{teamId}_{sourceId}_logs'`);
+      }
+    });
     
-    // If query doesn't specify a table, build multi-source query
-    if (!query.toLowerCase().includes('remote(')) {
+    let finalQuery = query;
+    console.error(`Original query: ${query}`);
+    
+    // If query doesn't specify a table function, build multi-source query
+    if (!query.toLowerCase().includes('remote(') && !query.toLowerCase().includes('s3cluster(')) {
       finalQuery = this.buildMultiSourceQuery(query, sources, dataType);
     }
+    
+    console.error(`Final query: ${finalQuery}`);
 
     // Add LIMIT if specified and not already present
     if (options.limit && !finalQuery.toLowerCase().includes('limit')) {
