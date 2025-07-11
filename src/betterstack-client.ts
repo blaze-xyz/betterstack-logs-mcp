@@ -99,7 +99,9 @@ export class BetterstackClient {
   private buildTableName(sourceId: string, sourceName: string, dataType: DataSourceType): string {
     const suffix = dataType === 'historical' ? '_archive' : 
                    dataType === 'metrics' ? '_metrics' : '';
-    return `t${sourceId}_${sourceName}_logs${suffix}`;
+    // Sanitize source name for ClickHouse table naming
+    const sanitizedName = sourceName.replace(/[^a-zA-Z0-9_]/g, '_').replace(/__+/g, '_');
+    return `t${sourceId}_${sanitizedName}_logs${suffix}`;
   }
 
   async testConnection(): Promise<boolean> {
@@ -264,34 +266,44 @@ export class BetterstackClient {
     options: QueryOptions = {}
   ): Promise<QueryResult> {
     const sources = await this.resolveSources(options);
-    const dataType = options.dataType || 'recent';
     
+    // Convert query to use Betterstack template variables
     let finalQuery = query;
     
-    // If query doesn't specify a table, build multi-source query
-    if (!query.toLowerCase().includes('remote(')) {
-      finalQuery = this.buildMultiSourceQuery(query, sources, dataType);
-    }
-
-    // Add LIMIT if specified and not already present
-    if (options.limit && !finalQuery.toLowerCase().includes('limit')) {
-      finalQuery += ` LIMIT ${options.limit}`;
-    }
-
-    // Add FORMAT JSON if not already present
-    if (!finalQuery.toLowerCase().includes('format')) {
-      finalQuery += ' FORMAT JSON';
+    // Replace generic table references with {{source}} template
+    finalQuery = finalQuery.replace(/FROM\s+logs\b/gi, 'FROM {{source}}');
+    finalQuery = finalQuery.replace(/FROM\s+metrics\b/gi, 'FROM {{source}}');
+    
+    // Add time filtering if not present and query references time
+    if (!finalQuery.toLowerCase().includes('time between') && 
+        !finalQuery.toLowerCase().includes('{{start_time}}') &&
+        finalQuery.toLowerCase().includes('dt >=')) {
+      // Replace dt >= now() - INTERVAL patterns with Betterstack time variables
+      finalQuery = finalQuery.replace(
+        /dt\s*>=\s*now\(\)\s*-\s*INTERVAL\s+\d+\s+(MINUTE|HOUR|DAY)/gi,
+        'time BETWEEN {{start_time}} AND {{end_time}}'
+      );
+      finalQuery = finalQuery.replace(/dt\b/g, 'time');
     }
 
     try {
+      // Use Explore Query API for querying logs
+      const sourceIds = sources.map(s => s.id);
+      
       const response = await this.rateLimiter(() => 
-        this.queryClient.post('/', finalQuery)
+        this.telemetryClient.get('/api/v2/query/explore-logs', {
+          params: {
+            source_ids: sourceIds.join(','),
+            query: finalQuery,
+            limit: options.limit || 100
+          }
+        })
       );
 
       return {
         data: response.data.data || response.data || [],
         meta: {
-          total_rows: response.data.rows || response.data.length,
+          total_rows: response.data.rows || (response.data.data || []).length,
           sources_queried: sources.map(s => s.name)
         }
       };
