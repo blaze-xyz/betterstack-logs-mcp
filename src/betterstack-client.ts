@@ -42,7 +42,7 @@ export class BetterstackClient {
       },
       timeout: 30000,
       headers: {
-        'Content-Type': 'application/json',
+        'Content-Type': 'text/plain',
         'User-Agent': 'betterstack-logs-mcp/1.0.0'
       }
     });
@@ -85,10 +85,7 @@ export class BetterstackClient {
           params: { page: 1, per_page: 1 }
         }),
         // Test ClickHouse (basic auth)
-        this.queryClient.post('/', {
-          query: 'SELECT 1',
-          format: 'JSON'
-        })
+        this.queryClient.post('/', 'SELECT 1 FORMAT JSON')
       ]);
 
       const telemetrySuccess = telemetryTest.status === 'fulfilled';
@@ -225,12 +222,14 @@ export class BetterstackClient {
       finalQuery += ` LIMIT ${options.limit}`;
     }
 
+    // Add FORMAT JSON if not already present
+    if (!finalQuery.toLowerCase().includes('format')) {
+      finalQuery += ' FORMAT JSON';
+    }
+
     try {
       const response = await this.rateLimiter(() => 
-        this.queryClient.post('/', {
-          query: finalQuery,
-          format: 'JSON'
-        })
+        this.queryClient.post('/', finalQuery)
       );
 
       return {
