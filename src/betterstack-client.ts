@@ -240,19 +240,19 @@ export class BetterstackClient {
     if (sources.length === 1) {
       const source = sources[0];
       const teamId = (source as any).team_id;
-      const sourceId = source.id;
+      const tableName = (source as any).table_name;
       
       let tableFunction: string;
       
       if (dataType === 'historical') {
-        const s3TableName = `t${teamId}_${sourceId}_s3`;
+        const s3TableName = `t${teamId}_${tableName}_s3`;
         tableFunction = `s3Cluster(primary, ${s3TableName})`;
       } else if (dataType === 'metrics') {
-        const metricsTableName = `t${teamId}_${sourceId}_metrics`;
+        const metricsTableName = `t${teamId}_${tableName}_metrics`;
         tableFunction = `remote(${metricsTableName})`;
       } else {
         // Recent logs
-        const logsTableName = `t${teamId}_${sourceId}_logs`;
+        const logsTableName = `t${teamId}_${tableName}_logs`;
         tableFunction = `remote(${logsTableName})`;
       }
       
@@ -263,19 +263,19 @@ export class BetterstackClient {
     // Multi-source query using UNION ALL
     const unionQueries = sources.map(source => {
       const teamId = (source as any).team_id;
-      const sourceId = source.id;
+      const tableName = (source as any).table_name;
       
       let tableFunction: string;
       
       if (dataType === 'historical') {
-        const s3TableName = `t${teamId}_${sourceId}_s3`;
+        const s3TableName = `t${teamId}_${tableName}_s3`;
         tableFunction = `s3Cluster(primary, ${s3TableName})`;
       } else if (dataType === 'metrics') {
-        const metricsTableName = `t${teamId}_${sourceId}_metrics`;
+        const metricsTableName = `t${teamId}_${tableName}_metrics`;
         tableFunction = `remote(${metricsTableName})`;
       } else {
         // Recent logs
-        const logsTableName = `t${teamId}_${sourceId}_logs`;
+        const logsTableName = `t${teamId}_${tableName}_logs`;
         tableFunction = `remote(${logsTableName})`;
       }
       
