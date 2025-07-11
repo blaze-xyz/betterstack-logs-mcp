@@ -72,7 +72,7 @@ export class BetterstackClient {
     return Date.now() - timestamp < this.config.cacheTtlSeconds * 1000;
   }
 
-  private transformApiSource(apiSource: BetterstackApiSource): Source & { source_group_id?: number } {
+  private transformApiSource(apiSource: BetterstackApiSource): Source & { source_group_id?: number; table_name: string; team_id: number } {
     return {
       id: apiSource.id,
       name: apiSource.attributes.name,
@@ -80,7 +80,9 @@ export class BetterstackClient {
       retention_days: apiSource.attributes.logs_retention,
       created_at: apiSource.attributes.created_at,
       updated_at: apiSource.attributes.updated_at,
-      source_group_id: apiSource.attributes.source_group_id
+      source_group_id: apiSource.attributes.source_group_id,
+      table_name: apiSource.attributes.table_name,
+      team_id: apiSource.attributes.team_id
     };
   }
 
@@ -228,7 +230,7 @@ export class BetterstackClient {
 
   private buildMultiSourceQuery(
     baseQuery: string, 
-    sources: Source[], 
+    sources: (Source & { table_name: string })[], 
     dataType: DataSourceType = 'recent'
   ): string {
     if (sources.length === 0) {
@@ -236,13 +238,17 @@ export class BetterstackClient {
     }
 
     if (sources.length === 1) {
-      const tableName = this.buildTableName(sources[0].id, sources[0].name, dataType);
+      const tableName = dataType === 'historical' ? 
+        sources[0].table_name.replace('_logs', '_s3') : // Historical uses S3
+        sources[0].table_name; // Recent uses the table_name as-is
       return baseQuery.replace(/FROM\s+\w+/i, `FROM remote(${tableName})`);
     }
 
     // Multi-source query using UNION ALL
     const unionQueries = sources.map(source => {
-      const tableName = this.buildTableName(source.id, source.name, dataType);
+      const tableName = dataType === 'historical' ? 
+        source.table_name.replace('_logs', '_s3') : 
+        source.table_name;
       const sourceQuery = baseQuery.replace(/FROM\s+\w+/i, `FROM remote(${tableName})`);
       
       // Add source identifier to SELECT clause
@@ -263,7 +269,7 @@ export class BetterstackClient {
     query: string, 
     options: QueryOptions = {}
   ): Promise<QueryResult> {
-    const sources = await this.resolveSources(options);
+    const sources = await this.resolveSources(options) as (Source & { table_name: string })[];
     const dataType = options.dataType || 'recent';
     
     let finalQuery = query;
