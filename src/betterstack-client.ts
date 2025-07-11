@@ -9,7 +9,8 @@ import {
   QueryOptions, 
   DataSourceType,
   BetterstackApiError,
-  BetterstackApiSource 
+  BetterstackApiSource,
+  BetterstackApiSourceGroup
 } from './types.js';
 
 export class BetterstackClient {
@@ -71,14 +72,27 @@ export class BetterstackClient {
     return Date.now() - timestamp < this.config.cacheTtlSeconds * 1000;
   }
 
-  private transformApiSource(apiSource: BetterstackApiSource): Source {
+  private transformApiSource(apiSource: BetterstackApiSource): Source & { source_group_id?: number } {
     return {
       id: apiSource.id,
       name: apiSource.attributes.name,
       platform: apiSource.attributes.platform,
       retention_days: apiSource.attributes.logs_retention,
       created_at: apiSource.attributes.created_at,
-      updated_at: apiSource.attributes.updated_at
+      updated_at: apiSource.attributes.updated_at,
+      source_group_id: apiSource.attributes.source_group_id
+    };
+  }
+
+  private transformApiSourceGroup(apiSourceGroup: BetterstackApiSourceGroup): SourceGroup {
+    return {
+      id: apiSourceGroup.id,
+      name: apiSourceGroup.attributes.name,
+      source_ids: [], // Will be populated separately by fetching sources for this group
+      created_at: apiSourceGroup.attributes.created_at,
+      updated_at: apiSourceGroup.attributes.updated_at,
+      sort_index: apiSourceGroup.attributes.sort_index,
+      team_name: apiSourceGroup.attributes.team_name
     };
   }
 
@@ -158,12 +172,40 @@ export class BetterstackClient {
       return this.sourceGroupsCache.data;
     }
 
-    // Note: Betterstack doesn't have a dedicated source groups API
-    // Source groups are logical collections we can create from source metadata
-    // For now, return empty array and let users configure groups in environment
-    console.error('Source groups are not supported by Betterstack API - using environment configuration');
-    this.sourceGroupsCache = { data: [], timestamp: Date.now() };
-    return [];
+    try {
+      const response = await this.rateLimiter(() => 
+        this.telemetryClient.get('/api/v1/source-groups', {
+          params: {
+            page: 1,
+            per_page: 50
+          }
+        })
+      );
+      
+      const apiSourceGroups: BetterstackApiSourceGroup[] = response.data.data || [];
+      const sourceGroups: SourceGroup[] = apiSourceGroups.map(apiGroup => this.transformApiSourceGroup(apiGroup));
+      
+      // Populate source_ids for each group by fetching sources and filtering by source_group_id
+      const allSources = await this.listSources() as (Source & { source_group_id?: number })[];
+      sourceGroups.forEach(group => {
+        const groupIdNum = parseInt(group.id);
+        group.source_ids = allSources
+          .filter(source => source.source_group_id === groupIdNum)
+          .map(source => source.id);
+      });
+      
+      this.sourceGroupsCache = { data: sourceGroups, timestamp: Date.now() };
+      console.error(`Successfully fetched ${sourceGroups.length} source groups from Betterstack API`);
+      return sourceGroups;
+    } catch (error: any) {
+      if (error.response?.data?.errors?.includes('Invalid Team API token')) {
+        console.error('Source groups require a Team API token. Please ensure you\'re using a Team API token from the Telemetry API tokens section in your Betterstack settings.');
+      } else {
+        console.error('Unable to fetch source groups from API:', error);
+      }
+      this.sourceGroupsCache = { data: [], timestamp: Date.now() };
+      return [];
+    }
   }
 
   async getSourceGroupInfo(groupName: string): Promise<SourceGroupInfo | null> {

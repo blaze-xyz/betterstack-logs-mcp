@@ -36,6 +36,21 @@ export interface SourceGroup {
   source_ids: string[];
   created_at?: string;
   updated_at?: string;
+  sort_index?: number;
+  team_name?: string;
+}
+
+export interface BetterstackApiSourceGroup {
+  id: string;
+  type: "source_group";
+  attributes: {
+    id: number;
+    name: string;
+    created_at: string;
+    updated_at: string;
+    sort_index: number;
+    team_name: string;
+  };
 }
 
 export interface SourceGroupInfo extends SourceGroup {

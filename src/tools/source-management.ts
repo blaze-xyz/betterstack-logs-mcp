@@ -66,8 +66,11 @@ export function registerSourceManagementTools(server: McpServer, client: Betters
             content: [
               {
                 type: "text",
-                text: "No source groups found. Source groups are logical collections of sources.\n" +
-                      "You can configure them in your Betterstack dashboard or they may not be supported by the API."
+                text: "No source groups found. This could mean:\n" +
+                      "1. No source groups have been created in your Betterstack dashboard\n" +
+                      "2. You may need a Team API token instead of an individual token\n" +
+                      "3. Check your Betterstack settings → API tokens → Telemetry API tokens section\n\n" +
+                      "Source groups are logical collections of sources that you can create in your dashboard."
               }
             ]
           };
