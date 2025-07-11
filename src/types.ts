@@ -7,6 +7,29 @@ export interface Source {
   updated_at?: string;
 }
 
+// JSON:API format from Betterstack Telemetry API
+export interface BetterstackApiSource {
+  id: string;
+  type: string;
+  attributes: {
+    team_id: number;
+    team_name: string;
+    name: string;
+    source_group_id?: number;
+    table_name: string;
+    platform: string;
+    token: string;
+    ingesting_host: string;
+    ingesting_paused: boolean;
+    logs_retention: number;
+    metrics_retention: number;
+    live_tail_pattern?: string;
+    vrl_transformation?: string;
+    created_at: string;
+    updated_at: string;
+  };
+}
+
 export interface SourceGroup {
   id: string;
   name: string;

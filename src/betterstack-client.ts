@@ -8,7 +8,8 @@ import {
   QueryResult, 
   QueryOptions, 
   DataSourceType,
-  BetterstackApiError 
+  BetterstackApiError,
+  BetterstackApiSource 
 } from './types.js';
 
 export class BetterstackClient {
@@ -70,6 +71,17 @@ export class BetterstackClient {
     return Date.now() - timestamp < this.config.cacheTtlSeconds * 1000;
   }
 
+  private transformApiSource(apiSource: BetterstackApiSource): Source {
+    return {
+      id: apiSource.id,
+      name: apiSource.attributes.name,
+      platform: apiSource.attributes.platform,
+      retention_days: apiSource.attributes.logs_retention,
+      created_at: apiSource.attributes.created_at,
+      updated_at: apiSource.attributes.updated_at
+    };
+  }
+
   private buildTableName(sourceId: string, sourceName: string, dataType: DataSourceType): string {
     const suffix = dataType === 'historical' ? '_archive' : 
                    dataType === 'metrics' ? '_metrics' : '';
@@ -124,7 +136,9 @@ export class BetterstackClient {
         })
       );
       
-      const sources: Source[] = response.data.data || [];
+      const apiSources: BetterstackApiSource[] = response.data.data || [];
+      const sources: Source[] = apiSources.map(apiSource => this.transformApiSource(apiSource));
+      
       this.sourcesCache = { data: sources, timestamp: Date.now() };
       console.error(`Successfully fetched ${sources.length} sources from Betterstack API`);
       return sources;
