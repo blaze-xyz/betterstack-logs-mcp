@@ -5,6 +5,65 @@ import { QueryOptions, DataSourceType } from '../types.js';
 
 export function registerQueryTools(server: McpServer, client: BetterstackClient) {
   
+  // Debug tool to show table information and query generation
+  server.tool(
+    "debug_table_info",
+    {
+      source_group: z.string().optional().describe("Source group name to debug (optional)"),
+      sources: z.array(z.string()).optional().describe("Specific source IDs (optional)")
+    },
+    async ({ source_group, sources }) => {
+      try {
+        const options: QueryOptions = {
+          sources,
+          sourceGroup: source_group,
+          dataType: 'recent'
+        };
+
+        // Get the sources that would be used
+        const resolvedSources = await (client as any).resolveSources(options);
+        
+        const debugInfo = resolvedSources.map((source: any) => {
+          return `**Source: ${source.name}**
+- ID: ${source.id}
+- Table Name: ${source.table_name || 'NOT SET'}
+- Team ID: ${source.team_id || 'NOT SET'}
+- Platform: ${source.platform}`;
+        });
+
+        // Test query generation
+        const testQuery = "SELECT dt, raw FROM logs LIMIT 1";
+        const builtQuery = await (client as any).buildMultiSourceQuery(testQuery, resolvedSources, 'recent');
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: `**Debug Information**
+
+**Resolved Sources (${resolvedSources.length}):**
+${debugInfo.join('\n\n')}
+
+**Test Query Generation:**
+Original: ${testQuery}
+Generated: ${builtQuery}`
+            }
+          ]
+        };
+      } catch (error: any) {
+        const errorMessage = error?.message || error?.toString() || 'Unknown error';
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ Debug failed: ${errorMessage}`
+            }
+          ]
+        };
+      }
+    }
+  );
+  
   // Execute custom ClickHouse SQL queries
   server.tool(
     "query_logs",
@@ -61,12 +120,17 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             }
           ]
         };
-      } catch (error) {
+      } catch (error: any) {
+        const errorMessage = error?.message || error?.response?.data?.message || error?.toString() || 'Unknown error';
+        const errorDetails = error?.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No additional details';
         return {
           content: [
             {
               type: "text",
-              text: `❌ Query failed: ${error}`
+              text: `❌ Query failed: ${errorMessage}
+
+**Error Details:**
+${errorDetails}`
             }
           ]
         };

@@ -238,17 +238,22 @@ export class BetterstackClient {
     }
 
     if (sources.length === 1) {
+      const source = sources[0];
+      const teamId = (source as any).team_id;
+      const sourceId = source.id;
+      
       let tableFunction: string;
       
       if (dataType === 'historical') {
-        const s3TableName = sources[0].table_name.replace('_logs', '_s3');
+        const s3TableName = `t${teamId}_${sourceId}_s3`;
         tableFunction = `s3Cluster(primary, ${s3TableName})`;
       } else if (dataType === 'metrics') {
-        const metricsTableName = sources[0].table_name.replace('_logs', '_metrics');
+        const metricsTableName = `t${teamId}_${sourceId}_metrics`;
         tableFunction = `remote(${metricsTableName})`;
       } else {
         // Recent logs
-        tableFunction = `remote(${sources[0].table_name})`;
+        const logsTableName = `t${teamId}_${sourceId}_logs`;
+        tableFunction = `remote(${logsTableName})`;
       }
       
       console.error(`Generated table function: ${tableFunction}`);
@@ -257,17 +262,21 @@ export class BetterstackClient {
 
     // Multi-source query using UNION ALL
     const unionQueries = sources.map(source => {
+      const teamId = (source as any).team_id;
+      const sourceId = source.id;
+      
       let tableFunction: string;
       
       if (dataType === 'historical') {
-        const s3TableName = source.table_name.replace('_logs', '_s3');
+        const s3TableName = `t${teamId}_${sourceId}_s3`;
         tableFunction = `s3Cluster(primary, ${s3TableName})`;
       } else if (dataType === 'metrics') {
-        const metricsTableName = source.table_name.replace('_logs', '_metrics');
+        const metricsTableName = `t${teamId}_${sourceId}_metrics`;
         tableFunction = `remote(${metricsTableName})`;
       } else {
         // Recent logs
-        tableFunction = `remote(${source.table_name})`;
+        const logsTableName = `t${teamId}_${sourceId}_logs`;
+        tableFunction = `remote(${logsTableName})`;
       }
       
       const sourceQuery = baseQuery.replace(/FROM\s+(logs|metrics)\b/gi, `FROM ${tableFunction}`);
