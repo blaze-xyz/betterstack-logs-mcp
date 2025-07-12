@@ -80,6 +80,7 @@ export interface QueryResult {
     total_rows?: number;
     query_time_ms?: number;
     sources_queried: string[];
+    api_used?: string;
   };
 }
 
