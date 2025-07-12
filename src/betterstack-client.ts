@@ -614,8 +614,8 @@ export class BetterstackClient {
     if (whereMatch) {
       const whereClause = whereMatch[1];
       
-      // Extract simple string searches (LIKE patterns)
-      const likeMatches = whereClause.match(/\w+\s+like\s+'([^']+)'/gi);
+      // Extract simple string searches (LIKE patterns) - handle both simple and complex patterns
+      const likeMatches = whereClause.match(/(?:\w+\s+like\s+'([^']+)'|toString\(\w+\)\s+like\s+'([^']+)')/gi);
       if (likeMatches) {
         const searchTerms = likeMatches.map(match => {
           const termMatch = match.match(/'([^']+)'/);
@@ -623,7 +623,8 @@ export class BetterstackClient {
         }).filter(term => term);
         
         if (searchTerms.length > 0) {
-          params.query = searchTerms.join(' ');
+          // For Live Tail, we can only search one term effectively, so take the first one
+          params.query = searchTerms[0];
         }
       }
       
