@@ -155,9 +155,9 @@ ${errorDetails}`
         const maxResults = limit || 100;
         
         const query = `
-          SELECT dt, raw 
+          SELECT dt, raw, json 
           FROM logs 
-          WHERE raw LIKE '%${search_text}%' 
+          WHERE (raw LIKE '%${search_text}%' OR toString(json) LIKE '%${search_text}%')
             AND dt >= now() - INTERVAL ${hours} HOUR 
           ORDER BY dt DESC
         `;
@@ -184,10 +184,24 @@ ${errorDetails}`
         } else {
           const matches = result.data.slice(0, 20).map((log: any, index) => {
             const timestamp = new Date(log.dt).toLocaleString();
-            const message = log.raw.length > 200 ? 
-              log.raw.substring(0, 200) + '...' : 
-              log.raw;
-            return `**${index + 1}.** ${timestamp}\n${message}`;
+            
+            // Try to extract better formatted message from JSON if available
+            let message = log.raw;
+            if (log.json && typeof log.json === 'object') {
+              // If we have JSON, try to get context and error details
+              const context = log.json.context || '';
+              const level = log.json.level || '';
+              const jsonMessage = log.json.message || log.json.error || '';
+              
+              if (jsonMessage && jsonMessage !== log.raw) {
+                message = `[${level}] ${context}: ${jsonMessage}`;
+              }
+            }
+            
+            const truncatedMessage = message.length > 200 ? 
+              message.substring(0, 200) + '...' : 
+              message;
+            return `**${index + 1}.** ${timestamp}\n${truncatedMessage}`;
           });
           
           resultText.push(...matches);
