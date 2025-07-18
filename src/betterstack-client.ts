@@ -16,7 +16,6 @@ import {
 export class BetterstackClient {
   private telemetryClient: AxiosInstance;
   private queryClient: AxiosInstance;
-  private liveTailClient: AxiosInstance;
   private sourcesCache: { data: Source[]; timestamp: number } | null = null;
   private sourceGroupsCache: { data: SourceGroup[]; timestamp: number } | null = null;
   private config: BetterstackConfig;
@@ -50,16 +49,6 @@ export class BetterstackClient {
       }
     });
 
-    // Legacy Live Tail API client for older sources (Bearer token auth)
-    this.liveTailClient = axios.create({
-      baseURL: 'https://telemetry.betterstack.com',
-      timeout: 30000,
-      headers: {
-        'Authorization': `Bearer ${config.apiToken}`,
-        'User-Agent': 'betterstack-logs-mcp/1.0.0'
-      }
-    });
-
     // Add response interceptor for error handling
     const errorHandler = (error: any) => {
       if (error.response) {
@@ -77,7 +66,6 @@ export class BetterstackClient {
 
     this.telemetryClient.interceptors.response.use((response) => response, errorHandler);
     this.queryClient.interceptors.response.use((response) => response, errorHandler);
-    this.liveTailClient.interceptors.response.use((response) => response, errorHandler);
   }
 
   private isCacheValid(timestamp: number): boolean {
@@ -318,33 +306,20 @@ export class BetterstackClient {
     const sources = await this.resolveSources(options) as (Source & { table_name: string })[];
     const dataType = options.dataType || 'recent';
     
-    // Classify sources by API type based on creation date
-    const { clickHouseSources, liveTailSources } = this.classifySourcesByAPI(sources);
+    console.error(`Executing ClickHouse query for ${sources.length} sources`);
     
-    console.error(`Query classification: ${clickHouseSources.length} ClickHouse sources, ${liveTailSources.length} Live Tail sources`);
-    
-    // If we have both types, we need to execute against both APIs and merge results
-    if (clickHouseSources.length > 0 && liveTailSources.length > 0) {
-      return await this.executeDualQuery(query, clickHouseSources, liveTailSources, options);
-    }
-    
-    // If only Live Tail sources, use Legacy API
-    if (liveTailSources.length > 0 && clickHouseSources.length === 0) {
-      return await this.executeLiveTailQuery(query, liveTailSources, options);
-    }
-    
-    // If only ClickHouse sources (or empty), use new ClickHouse API
-    return await this.executeClickHouseQuery(query, clickHouseSources as (Source & { table_name: string })[], dataType, options);
+    // All sources now use ClickHouse API
+    return await this.executeClickHouseQuery(query, sources, dataType, options);
   }
 
-  // Execute query against new ClickHouse API for newer sources
+  // Execute query against ClickHouse API
   private async executeClickHouseQuery(
     query: string,
     sources: (Source & { table_name: string })[],
     dataType: DataSourceType,
     options: QueryOptions = {}
   ): Promise<QueryResult> {
-    console.error(`Executing ClickHouse query for ${sources.length} newer sources`);
+    console.error(`Executing ClickHouse query for ${sources.length} sources`);
     
     // Validate table names
     sources.forEach(source => {
@@ -393,70 +368,6 @@ export class BetterstackClient {
     }
   }
 
-  // Execute query against both APIs and merge results
-  private async executeDualQuery(
-    query: string,
-    clickHouseSources: Source[],
-    liveTailSources: Source[],
-    options: QueryOptions = {}
-  ): Promise<QueryResult> {
-    console.error(`Executing dual query: ${clickHouseSources.length} ClickHouse + ${liveTailSources.length} Live Tail sources`);
-    
-    const dataType = options.dataType || 'recent';
-    
-    try {
-      // Execute both queries in parallel
-      const [clickHouseResult, liveTailResult] = await Promise.allSettled([
-        this.executeClickHouseQuery(query, clickHouseSources as (Source & { table_name: string })[], dataType, options),
-        this.executeLiveTailQuery(query, liveTailSources, options)
-      ]);
-      
-      // Merge results
-      const mergedData: any[] = [];
-      const sourcesQueried: string[] = [];
-      let totalRows = 0;
-      const apisUsed: string[] = [];
-      
-      if (clickHouseResult.status === 'fulfilled') {
-        mergedData.push(...clickHouseResult.value.data);
-        if (clickHouseResult.value.meta) {
-          sourcesQueried.push(...clickHouseResult.value.meta.sources_queried);
-          totalRows += clickHouseResult.value.meta.total_rows || 0;
-        }
-        apisUsed.push('clickhouse');
-      } else {
-        console.error('ClickHouse query failed in dual execution:', clickHouseResult.reason);
-      }
-      
-      if (liveTailResult.status === 'fulfilled') {
-        mergedData.push(...liveTailResult.value.data);
-        if (liveTailResult.value.meta) {
-          sourcesQueried.push(...liveTailResult.value.meta.sources_queried);
-          totalRows += liveTailResult.value.meta.total_rows || 0;
-        }
-        apisUsed.push('live_tail');
-      } else {
-        console.error('Live Tail query failed in dual execution:', liveTailResult.reason);
-      }
-      
-      // If both failed, throw an error
-      if (clickHouseResult.status === 'rejected' && liveTailResult.status === 'rejected') {
-        throw new Error(`Both API queries failed. ClickHouse: ${clickHouseResult.reason}, Live Tail: ${liveTailResult.reason}`);
-      }
-      
-      return {
-        data: mergedData,
-        meta: {
-          total_rows: totalRows,
-          sources_queried: sourcesQueried,
-          api_used: apisUsed.join('+')
-        }
-      };
-    } catch (error) {
-      console.error('Dual query execution failed:', error);
-      throw error;
-    }
-  }
 
   private async resolveSources(options: QueryOptions): Promise<Source[]> {
     if (options.sources && options.sources.length > 0) {
@@ -511,173 +422,7 @@ export class BetterstackClient {
     return 'recent';
   }
 
-  // Date classification utility to determine which API to use
-  private shouldUseLiveTailAPI(source: Source): boolean {
-    const cutoffDate = new Date('2025-02-28T23:59:59Z'); // Feb 28, 2025 cutoff
-    
-    if (!source.created_at) {
-      // If no creation date available, assume it's an older source
-      return true;
-    }
-    
-    const sourceCreatedAt = new Date(source.created_at);
-    
-    // Sources created Feb 28, 2025 or earlier use Legacy Live Tail API
-    // Sources created March 1, 2025 or later use new ClickHouse API
-    return sourceCreatedAt <= cutoffDate;
-  }
 
-  // Classify sources by API type
-  private classifySourcesByAPI(sources: Source[]): { clickHouseSources: Source[]; liveTailSources: Source[] } {
-    const clickHouseSources: Source[] = [];
-    const liveTailSources: Source[] = [];
 
-    sources.forEach(source => {
-      if (this.shouldUseLiveTailAPI(source)) {
-        liveTailSources.push(source);
-      } else {
-        clickHouseSources.push(source);
-      }
-    });
 
-    console.error(`Classified sources: ${clickHouseSources.length} ClickHouse, ${liveTailSources.length} Live Tail`);
-    return { clickHouseSources, liveTailSources };
-  }
-
-  // Execute query against Legacy Live Tail API for older sources
-  private async executeLiveTailQuery(
-    query: string,
-    sources: Source[],
-    options: QueryOptions = {}
-  ): Promise<QueryResult> {
-    console.error(`Executing Live Tail v2 query for ${sources.length} older sources`);
-    
-    const sourceIds = sources.map(s => s.id).join(',');
-    
-    try {
-      // Translate ClickHouse query to Live Tail API parameters
-      const queryParams = this.translateQueryForLiveTail(query, options);
-      queryParams.source_ids = sourceIds;
-      
-      console.error(`Live Tail v2 query params: ${JSON.stringify(queryParams)}`);
-      
-      const response = await this.rateLimiter(() =>
-        this.liveTailClient.get('/api/v2/query/live-tail', {
-          params: queryParams
-        })
-      );
-      
-      const normalizedData = this.normalizeLiveTailResponse(response.data);
-      
-      return {
-        data: normalizedData,
-        meta: {
-          total_rows: normalizedData.length,
-          sources_queried: sources.map(s => s.name),
-          api_used: 'live_tail_v2'
-        }
-      };
-    } catch (error: any) {
-      console.error('Live Tail v2 query execution failed:', error);
-      if (error.response) {
-        console.error('Response status:', error.response.status);
-        console.error('Response data:', JSON.stringify(error.response.data));
-      }
-      throw error;
-    }
-  }
-
-  // Translate ClickHouse query to Live Tail API v2 parameters
-  private translateQueryForLiveTail(query: string, options: QueryOptions): any {
-    console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Input query:`, query.trim());
-    
-    const params: any = {
-      batch: Math.min(Math.max(options.limit || 100, 50), 1000), // Ensure within 50-1000 range
-      order: 'newest_first' // Default to newest first
-    };
-    
-    // Handle time range if provided
-    if (options.timeRange) {
-      params.from = options.timeRange.start.toISOString();
-      params.to = options.timeRange.end.toISOString();
-    } else {
-      // Default to last 30 minutes for recent queries
-      const now = new Date();
-      const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
-      params.from = thirtyMinutesAgo.toISOString();
-      params.to = now.toISOString();
-    }
-    
-    // Extract ORDER BY clause
-    const orderMatch = query.match(/order\s+by\s+\w+\s+(asc|desc)/i);
-    if (orderMatch) {
-      params.order = orderMatch[1].toLowerCase() === 'asc' ? 'oldest_first' : 'newest_first';
-    }
-    
-    // Extract WHERE clauses and convert to Live Tail Query Language
-    const whereMatch = query.match(/where\s+(.+?)(?:\s+order|\s+limit|\s+format|$)/i);
-    console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: WHERE match:`, whereMatch);
-    
-    if (whereMatch) {
-      const whereClause = whereMatch[1];
-      console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: WHERE clause:`, whereClause);
-      
-      // Extract simple string searches (LIKE patterns) - handle both simple and complex patterns
-      const likeMatches = whereClause.match(/(?:\w+\s+like\s+'([^']+)'|toString\(\w+\)\s+like\s+'([^']+)')/gi);
-      console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: LIKE matches:`, likeMatches);
-      
-      if (likeMatches) {
-        const searchTerms = likeMatches.map(match => {
-          const termMatch = match.match(/'([^']+)'/);
-          return termMatch ? termMatch[1].replace(/%/g, '') : '';
-        }).filter(term => term);
-        
-        console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Search terms:`, searchTerms);
-        
-        if (searchTerms.length > 0) {
-          // For Live Tail, we can only search one term effectively, so take the first one
-          params.query = searchTerms[0];
-          console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Set params.query to:`, params.query);
-        }
-      }
-      
-      // Extract exact string matches
-      const exactMatches = whereClause.match(/\w+\s*=\s*'([^']+)'/gi);
-      if (exactMatches && !params.query) {
-        const exactTerms = exactMatches.map(match => {
-          const termMatch = match.match(/'([^']+)'/);
-          return termMatch ? `"${termMatch[1]}"` : '';
-        }).filter(term => term);
-        
-        if (exactTerms.length > 0) {
-          params.query = exactTerms.join(' AND ');
-        }
-      }
-    }
-    
-    console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Final params:`, JSON.stringify(params, null, 2));
-    return params;
-  }
-
-  // Normalize Live Tail API v2 response to match ClickHouse format
-  private normalizeLiveTailResponse(responseData: any): any[] {
-    if (!responseData) return [];
-    
-    // Live Tail v2 API returns data in responseData.data array
-    if (responseData.data && Array.isArray(responseData.data)) {
-      return responseData.data.map((logEntry: any) => ({
-        dt: logEntry.dt,
-        raw: logEntry.message || JSON.stringify(logEntry),
-        source: logEntry.app || logEntry.source_id,
-        ...logEntry // Include all other fields from the log entry
-      }));
-    }
-    
-    // Fallback for unexpected response format
-    if (Array.isArray(responseData)) {
-      return responseData;
-    }
-    
-    return [];
-  }
 }
