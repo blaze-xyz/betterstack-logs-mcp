@@ -312,6 +312,9 @@ export class BetterstackClient {
     query: string, 
     options: QueryOptions = {}
   ): Promise<QueryResult> {
+    console.error(`🚀 EXECUTE_QUERY DEBUG: Received query:`, query.trim());
+    console.error(`🚀 EXECUTE_QUERY DEBUG: Options:`, JSON.stringify(options, null, 2));
+    
     const sources = await this.resolveSources(options) as (Source & { table_name: string })[];
     const dataType = options.dataType || 'recent';
     
@@ -586,6 +589,8 @@ export class BetterstackClient {
 
   // Translate ClickHouse query to Live Tail API v2 parameters
   private translateQueryForLiveTail(query: string, options: QueryOptions): any {
+    console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Input query:`, query.trim());
+    
     const params: any = {
       batch: Math.min(Math.max(options.limit || 100, 50), 1000), // Ensure within 50-1000 range
       order: 'newest_first' // Default to newest first
@@ -611,20 +616,28 @@ export class BetterstackClient {
     
     // Extract WHERE clauses and convert to Live Tail Query Language
     const whereMatch = query.match(/where\s+(.+?)(?:\s+order|\s+limit|\s+format|$)/i);
+    console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: WHERE match:`, whereMatch);
+    
     if (whereMatch) {
       const whereClause = whereMatch[1];
+      console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: WHERE clause:`, whereClause);
       
       // Extract simple string searches (LIKE patterns) - handle both simple and complex patterns
       const likeMatches = whereClause.match(/(?:\w+\s+like\s+'([^']+)'|toString\(\w+\)\s+like\s+'([^']+)')/gi);
+      console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: LIKE matches:`, likeMatches);
+      
       if (likeMatches) {
         const searchTerms = likeMatches.map(match => {
           const termMatch = match.match(/'([^']+)'/);
           return termMatch ? termMatch[1].replace(/%/g, '') : '';
         }).filter(term => term);
         
+        console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Search terms:`, searchTerms);
+        
         if (searchTerms.length > 0) {
           // For Live Tail, we can only search one term effectively, so take the first one
           params.query = searchTerms[0];
+          console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Set params.query to:`, params.query);
         }
       }
       
@@ -642,6 +655,7 @@ export class BetterstackClient {
       }
     }
     
+    console.error(`🔄 LIVE_TAIL_TRANSLATE DEBUG: Final params:`, JSON.stringify(params, null, 2));
     return params;
   }
 

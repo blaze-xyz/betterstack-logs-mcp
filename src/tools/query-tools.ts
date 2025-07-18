@@ -162,6 +162,8 @@ ${errorDetails}`
           ORDER BY dt DESC
         `;
 
+        console.error(`🔍 SEARCH_LOGS DEBUG: Generated query for "${search_text}":`, query.trim());
+
         const options: QueryOptions = {
           sources,
           sourceGroup: source_group,
