@@ -2,6 +2,17 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BetterstackClient } from '../betterstack-client.js';
 import { QueryOptions, DataSourceType } from '../types.js';
+import fs from 'fs';
+import path from 'path';
+
+// Setup logging
+const logFile = path.join(process.cwd(), 'mcp-debug.log');
+const logToFile = (level: string, message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] QUERY-TOOLS ${level}: ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
+  fs.appendFileSync(logFile, logEntry);
+  console.error(`QUERY-TOOLS ${level}: ${message}`, data || '');
+};
 
 export function registerQueryTools(server: McpServer, client: BetterstackClient) {
   
@@ -76,6 +87,8 @@ Generated: ${builtQuery}`
     },
     async ({ query, sources, source_group, data_type, limit }) => {
       try {
+        logToFile('INFO', 'Executing query_logs tool', { query, sources, source_group, data_type, limit });
+        
         const options: QueryOptions = {
           sources,
           sourceGroup: source_group,
@@ -83,7 +96,9 @@ Generated: ${builtQuery}`
           limit
         };
 
+        logToFile('INFO', 'Query options prepared', options);
         const result = await client.executeQuery(query, options);
+        logToFile('INFO', 'Query executed successfully', { resultCount: result.data?.length, meta: result.meta });
         
         const resultText = [
           `**Query Results**`,
@@ -121,6 +136,13 @@ Generated: ${builtQuery}`
           ]
         };
       } catch (error: any) {
+        logToFile('ERROR', 'Query failed in query_logs tool', { 
+          error: error?.message || error?.toString(),
+          response: error?.response?.data,
+          config: error?.config,
+          stack: error?.stack
+        });
+        
         const errorMessage = error?.message || error?.response?.data?.message || error?.toString() || 'Unknown error';
         const errorDetails = error?.response?.data ? JSON.stringify(error.response.data, null, 2) : 'No additional details';
         return {
@@ -151,6 +173,8 @@ ${errorDetails}`
     },
     async ({ search_text, sources, source_group, data_type, time_range_hours, limit }) => {
       try {
+        logToFile('INFO', 'Executing search_logs tool', { search_text, sources, source_group, data_type, time_range_hours, limit });
+        
         const hours = time_range_hours || 24;
         const maxResults = limit || 100;
         
@@ -162,6 +186,8 @@ ${errorDetails}`
           ORDER BY dt DESC
         `;
 
+        logToFile('INFO', 'Generated search query', { query: query.trim(), search_text });
+
         const options: QueryOptions = {
           sources,
           sourceGroup: source_group,
@@ -169,7 +195,9 @@ ${errorDetails}`
           limit: maxResults
         };
 
+        logToFile('INFO', 'Search options prepared', options);
         const result = await client.executeQuery(query, options);
+        logToFile('INFO', 'Search executed successfully', { resultCount: result.data?.length, meta: result.meta });
         
         const resultText = [
           `**Search Results for "${search_text}"**`,
@@ -219,7 +247,14 @@ ${errorDetails}`
             }
           ]
         };
-      } catch (error) {
+      } catch (error: any) {
+        logToFile('ERROR', 'Search failed in search_logs tool', { 
+          error: error?.message || error?.toString(),
+          response: error?.response?.data,
+          config: error?.config,
+          stack: error?.stack
+        });
+        
         return {
           content: [
             {

@@ -29,5 +29,6 @@
     "shx": "^0.3.4",
     "typescript": "^5.8.3",
     "@types/node": "^20.19.6"
-  }
+  },
+  "packageManager": "yarn@4.6.0+sha256.eaf1eeabc164a44ca0b65dbdccd54af7e55f3ff9294b3ff318d5aaec92f2b20b"
 }
