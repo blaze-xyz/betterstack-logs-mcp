@@ -12,6 +12,17 @@ import {
   BetterstackApiSource,
   BetterstackApiSourceGroup
 } from './types.js';
+import fs from 'fs';
+import path from 'path';
+
+// Setup logging
+const logFile = path.join(process.cwd(), 'mcp-debug.log');
+const logToFile = (level: string, message: string, data?: any) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = `[${timestamp}] CLIENT ${level}: ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
+  fs.appendFileSync(logFile, logEntry);
+  console.error(`CLIENT ${level}: ${message}`, data || '');
+};
 
 export class BetterstackClient {
   private telemetryClient: AxiosInstance;
@@ -106,6 +117,8 @@ export class BetterstackClient {
 
   async testConnection(): Promise<boolean> {
     try {
+      logToFile('INFO', 'Testing connection to Betterstack APIs...');
+      
       // Test both authentication systems
       const [telemetryTest, clickhouseTest] = await Promise.allSettled([
         // Test Telemetry API (Bearer token)
@@ -118,6 +131,13 @@ export class BetterstackClient {
 
       const telemetrySuccess = telemetryTest.status === 'fulfilled';
       const clickhouseSuccess = clickhouseTest.status === 'fulfilled';
+      
+      logToFile('INFO', 'Connection test results', {
+        telemetrySuccess,
+        clickhouseSuccess,
+        telemetryError: telemetryTest.status === 'rejected' ? telemetryTest.reason?.message : null,
+        clickhouseError: clickhouseTest.status === 'rejected' ? clickhouseTest.reason?.message : null
+      });
 
       if (telemetrySuccess && clickhouseSuccess) {
         console.error('✅ Both Telemetry API and ClickHouse connections successful');
@@ -300,16 +320,27 @@ export class BetterstackClient {
     query: string, 
     options: QueryOptions = {}
   ): Promise<QueryResult> {
-    console.error(`🚀 EXECUTE_QUERY DEBUG: Received query:`, query.trim());
-    console.error(`🚀 EXECUTE_QUERY DEBUG: Options:`, JSON.stringify(options, null, 2));
+    logToFile('INFO', 'Executing query', { query: query.trim(), options });
     
-    const sources = await this.resolveSources(options) as (Source & { table_name: string })[];
-    const dataType = options.dataType || 'recent';
-    
-    console.error(`Executing ClickHouse query for ${sources.length} sources`);
-    
-    // All sources now use ClickHouse API
-    return await this.executeClickHouseQuery(query, sources, dataType, options);
+    try {
+      const sources = await this.resolveSources(options) as (Source & { table_name: string })[];
+      const dataType = options.dataType || 'recent';
+      
+      logToFile('INFO', 'Query execution parameters', { 
+        sourcesCount: sources.length, 
+        dataType,
+        sources: sources.map(s => ({ id: s.id, name: s.name, table_name: s.table_name }))
+      });
+      
+      // All sources now use ClickHouse API
+      return await this.executeClickHouseQuery(query, sources, dataType, options);
+    } catch (error: any) {
+      logToFile('ERROR', 'Query execution failed', { 
+        error: error?.message || error?.toString(),
+        stack: error?.stack
+      });
+      throw error;
+    }
   }
 
   // Execute query against ClickHouse API
@@ -319,25 +350,33 @@ export class BetterstackClient {
     dataType: DataSourceType,
     options: QueryOptions = {}
   ): Promise<QueryResult> {
-    console.error(`Executing ClickHouse query for ${sources.length} sources`);
-    
-    // Validate table names
-    sources.forEach(source => {
-      console.error(`Source: ${source.name}, Table: ${source.table_name}, Team ID: ${(source as any).team_id}`);
-      if (!source.table_name || !source.table_name.match(/^t\d+_.*_logs$/)) {
-        console.error(`Warning: Table name '${source.table_name}' doesn't match expected pattern 't{teamId}_{sourceId}_logs'`);
-      }
+    logToFile('INFO', 'Executing ClickHouse query', { 
+      sourcesCount: sources.length, 
+      dataType, 
+      originalQuery: query.trim() 
     });
     
+    // Validate table names
+    const sourceDetails = sources.map(source => {
+      const isValidTable = source.table_name && source.table_name.match(/^t\d+_.*_logs$/);
+      return {
+        name: source.name,
+        table_name: source.table_name,
+        team_id: (source as any).team_id,
+        valid_table: isValidTable
+      };
+    });
+    
+    logToFile('INFO', 'Source validation results', sourceDetails);
+    
     let finalQuery = query;
-    console.error(`Original query: ${query}`);
     
     // If query doesn't specify a table function, build multi-source query
     if (!query.toLowerCase().includes('remote(') && !query.toLowerCase().includes('s3cluster(')) {
       finalQuery = this.buildMultiSourceQuery(query, sources, dataType);
     }
     
-    console.error(`Final query: ${finalQuery}`);
+    logToFile('INFO', 'Final ClickHouse query prepared', { finalQuery: finalQuery.trim() });
 
     // Add LIMIT if specified and not already present
     if (options.limit && !finalQuery.toLowerCase().includes('limit')) {
@@ -350,9 +389,22 @@ export class BetterstackClient {
     }
 
     try {
+      logToFile('INFO', 'Making ClickHouse API request', { 
+        query: finalQuery.substring(0, 500) + (finalQuery.length > 500 ? '...' : ''),
+        endpoint: this.config.clickhouseQueryEndpoint,
+        username: this.config.clickhouseUsername
+      });
+      
       const response = await this.rateLimiter(() => 
         this.queryClient.post('/', finalQuery)
       );
+
+      logToFile('INFO', 'ClickHouse API response received', {
+        status: response.status,
+        dataLength: response.data?.data?.length || response.data?.length || 0,
+        responseDataKeys: Object.keys(response.data || {}),
+        firstFewChars: JSON.stringify(response.data).substring(0, 200)
+      });
 
       return {
         data: response.data.data || response.data || [],
@@ -362,7 +414,19 @@ export class BetterstackClient {
           api_used: 'clickhouse'
         }
       };
-    } catch (error) {
+    } catch (error: any) {
+      logToFile('ERROR', 'ClickHouse query execution failed', {
+        error: error?.message || error?.toString(),
+        response: error?.response?.data,
+        status: error?.response?.status,
+        config: {
+          method: error?.config?.method,
+          url: error?.config?.url,
+          headers: error?.config?.headers,
+          data: error?.config?.data?.substring(0, 200)
+        },
+        stack: error?.stack
+      });
       console.error('ClickHouse query execution failed:', error);
       throw error;
     }
