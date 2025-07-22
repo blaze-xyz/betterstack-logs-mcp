@@ -23,6 +23,7 @@ const logToFile = (level: string, message: string, data?: any) => {
   fs.appendFileSync(logFile, logEntry);
   console.error(`CLIENT ${level}: ${message}`, data || '');
 };
+const RATE_LIMIT = 1;
 
 export class BetterstackClient {
   private telemetryClient: AxiosInstance;
@@ -30,7 +31,7 @@ export class BetterstackClient {
   private sourcesCache: { data: Source[]; timestamp: number } | null = null;
   private sourceGroupsCache: { data: SourceGroup[]; timestamp: number } | null = null;
   private config: BetterstackConfig;
-  private rateLimiter = pLimit(5); // Max 5 concurrent requests
+  private static rateLimiter = pLimit(RATE_LIMIT); // All instances share the same rate limiter
 
   constructor(config: BetterstackConfig) {
     this.config = config;
@@ -163,7 +164,7 @@ export class BetterstackClient {
     }
 
     try {
-      const response = await this.rateLimiter(() => 
+      const response = await BetterstackClient.rateLimiter(() => 
         this.telemetryClient.get('/api/v1/sources', {
           params: {
             page: 1,
@@ -195,7 +196,7 @@ export class BetterstackClient {
     }
 
     try {
-      const response = await this.rateLimiter(() => 
+      const response = await BetterstackClient.rateLimiter(() => 
         this.telemetryClient.get('/api/v1/source-groups', {
           params: {
             page: 1,
@@ -390,12 +391,12 @@ export class BetterstackClient {
 
     try {
       logToFile('INFO', 'Making ClickHouse API request', { 
-        query: finalQuery.substring(0, 500) + (finalQuery.length > 500 ? '...' : ''),
+        query: finalQuery,
         endpoint: this.config.clickhouseQueryEndpoint,
         username: this.config.clickhouseUsername
       });
       
-      const response = await this.rateLimiter(() => 
+      const response = await BetterstackClient.rateLimiter(() => 
         this.queryClient.post('/', finalQuery)
       );
 
@@ -485,8 +486,5 @@ export class BetterstackClient {
     
     return 'recent';
   }
-
-
-
 
 }

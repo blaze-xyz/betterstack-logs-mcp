@@ -6,7 +6,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Setup logging
-const logFile = path.join(process.cwd(), 'mcp-debug.log');
+const logFile = path.join('/tmp', 'mcp-debug.log');
 const logToFile = (level: string, message: string, data?: any) => {
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] QUERY-TOOLS ${level}: ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
@@ -225,11 +225,8 @@ ${errorDetails}`
                 message = `[${level}] ${context}: ${jsonMessage}`;
               }
             }
-            
-            const truncatedMessage = message.length > 200 ? 
-              message.substring(0, 200) + '...' : 
-              message;
-            return `**${index + 1}.** ${timestamp}\n${truncatedMessage}`;
+
+            return `**${index + 1}.** ${timestamp}\n${message}`;
           });
           
           resultText.push(...matches);
@@ -318,9 +315,7 @@ ${errorDetails}`
         } else {
           const logs = result.data.map((log: any, index) => {
             const timestamp = new Date(log.dt).toLocaleString();
-            const message = log.raw.length > 150 ? 
-              log.raw.substring(0, 150) + '...' : 
-              log.raw;
+            const message = log.raw;
             const source = log.source ? ` [${log.source}]` : '';
             return `**${index + 1}.** ${timestamp}${source}\n${message}`;
           });
@@ -403,9 +398,7 @@ ${errorDetails}`
         } else {
           const logs = result.data.slice(0, 15).map((log: any, index) => {
             const timestamp = new Date(log.dt).toLocaleString();
-            const message = log.raw.length > 150 ? 
-              log.raw.substring(0, 150) + '...' : 
-              log.raw;
+            const message = log.raw;
             const source = log.source ? ` [${log.source}]` : '';
             return `**${index + 1}.** ${timestamp}${source}\n${message}`;
           });
