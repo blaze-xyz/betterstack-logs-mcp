@@ -36,14 +36,22 @@ Replace raw SQL interface with a structured parameter-based approach where:
 
   // FILTERING - What to filter by
   filters: z.object({
+    // RAW LOG FILTERING (most common use case)
+    raw_like: z.string().optional(),            // SQL LIKE pattern matching on raw field
+    raw_contains: z.string().optional(),        // Simple substring search in raw field
+    raw_regex: z.string().optional(),           // Regex pattern matching on raw field
+    
+    // LOG LEVEL FILTERING
     level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional(),
-    message_contains: z.string().optional(),
-    message_regex: z.string().optional(),
+    
+    // TIME RANGE FILTERING
     time_range: z.object({
       start: z.string().optional(),  // ISO date or relative (e.g., "1 hour ago")
       end: z.string().optional(),
       last: z.string().optional()    // e.g., "1h", "30m", "2d"
     }).optional(),
+    
+    // STRUCTURED DATA FILTERING
     json_field: z.object({
       path: z.string(),              // e.g., "user.id", "request.method" 
       value: z.string()
@@ -93,6 +101,8 @@ Query: "SELECT * FROM recent ORDER BY timestamp DESC LIMIT 10"
 ```
 
 ### After (Structured - Reliable)
+
+**Basic Query:**
 ```javascript
 {
   fields: ['dt', 'raw', 'level'],
@@ -102,6 +112,33 @@ Query: "SELECT * FROM recent ORDER BY timestamp DESC LIMIT 10"
   sources: ['Spark - Production']
 }
 ✅ Server generates: SELECT dt, raw, level FROM remote(spark_production_4) ORDER BY dt DESC LIMIT 10
+```
+
+**Raw Log Filtering (Most Common):**
+```javascript
+{
+  fields: ['dt', 'raw'],
+  filters: {
+    raw_contains: 'API error'
+  },
+  limit: 20,
+  sources: ['Spark - Production']
+}
+✅ Server generates: SELECT dt, raw FROM remote(spark_production_4) WHERE raw LIKE '%API error%' ORDER BY dt DESC LIMIT 20
+```
+
+**Complex Filtering:**
+```javascript
+{
+  fields: ['dt', 'raw', 'level'],
+  filters: {
+    level: 'ERROR',
+    raw_like: '%timeout%',
+    time_range: { last: '1h' }
+  },
+  limit: 50
+}
+✅ Server generates: SELECT dt, raw, level FROM remote(...) WHERE level = 'ERROR' AND raw LIKE '%timeout%' AND dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 50
 ```
 
 ## Query Compiler Implementation
