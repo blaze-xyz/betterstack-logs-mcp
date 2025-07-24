@@ -12,7 +12,7 @@ import fs from 'fs';
 import path from 'path';
 
 // Setup logging
-const logFile = path.join('/tmp', 'mcp-debug.log');
+const logFile = path.join(process.cwd(), 'mcp-debug.log');
 const logToFile = (level: string, message: string, data?: any) => {
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] ${level}: ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
