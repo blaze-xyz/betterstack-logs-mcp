@@ -10,9 +10,12 @@ import { registerQueryTools } from './tools/query-tools.js';
 import { registerAnalysisTools } from './tools/analysis-tools.js';
 import fs from 'fs';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-// Setup logging
-const logFile = path.join(process.cwd(), 'mcp-debug.log');
+// Setup logging - use the directory where this script is located
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const logFile = path.join(path.dirname(__dirname), 'mcp-debug.log');
 const logToFile = (level: string, message: string, data?: any) => {
   const timestamp = new Date().toISOString();
   const logEntry = `[${timestamp}] ${level}: ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
