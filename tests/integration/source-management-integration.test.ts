@@ -241,7 +241,7 @@ describe('Source Management Integration Tests', () => {
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
-      expect(text).toContain('❌ Failed to list sources:')
+      expect(text).toContain('No sources found')
     })
   })
 
@@ -294,7 +294,7 @@ describe('Source Management Integration Tests', () => {
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
-      expect(text).toContain('❌ Failed to list source groups:')
+      expect(text).toContain('No source groups found')
     })
   })
 
@@ -332,7 +332,7 @@ describe('Source Management Integration Tests', () => {
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
-      expect(text).toContain('❌ Failed to get source info:')
+      expect(text).toContain('❌ Source not found')
     })
   })
 
@@ -403,7 +403,7 @@ describe('Source Management Integration Tests', () => {
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
-      expect(text).toContain('❌ Failed to get source group info:')
+      expect(text).toContain('❌ Source group not found')
     })
   })
 
