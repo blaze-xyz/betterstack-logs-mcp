@@ -20,7 +20,7 @@ Currently, the Betterstack Logs MCP server lacks systematic testing, making it d
 2. **Automated Validation**: Enable automated testing in CI/CD pipelines
 3. **Error Handling Verification**: Ensure graceful handling of API failures, invalid inputs, and network issues
 4. **Performance Monitoring**: Track response times and resource usage
-5. **Integration Testing**: Validate end-to-end workflows using multiple tools
+5. **Integration Testing**: Validate MCP protocol and multi-tool workflows
 
 ### Secondary Goals
 1. **Mock Support**: Enable testing without live Betterstack API dependencies
@@ -51,11 +51,11 @@ Currently, the Betterstack Logs MCP server lacks systematic testing, making it d
 - Test cross-tool workflows (e.g., list sources → query logs)
 - Verify authentication and connection handling
 
-#### 3. End-to-End Tests
-- Test complete user scenarios through MCP protocol
-- Validate tool chaining and context preservation
-- Test with actual Claude Desktop integration
-- Performance and timeout testing
+#### 3. Manual Testing with Claude
+- Test complete user scenarios through Claude Desktop
+- Validate tool chaining and context preservation  
+- Real-world usage validation (replaces traditional end-to-end testing)
+- Performance and timeout validation
 
 ### Tool-Specific Requirements
 
