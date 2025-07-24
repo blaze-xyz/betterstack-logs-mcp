@@ -236,7 +236,7 @@ describe('Source Management Tools', () => {
 
     it('should return false when ClickHouse API fails', async () => {
       globalThis.__MSW_SERVER__.use(
-        http.post('*/query', () => {
+        http.post('https://clickhouse.betterstack.com/', () => {
           return HttpResponse.error()
         })
       )
@@ -250,7 +250,7 @@ describe('Source Management Tools', () => {
         http.get('https://telemetry.betterstack.com/api/v1/sources', () => {
           return HttpResponse.error()
         }),
-        http.post('*/query', () => {
+        http.post('https://clickhouse.betterstack.com/', () => {
           return HttpResponse.error()
         })
       )

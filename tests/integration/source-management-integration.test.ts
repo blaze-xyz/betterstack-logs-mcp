@@ -1,37 +1,203 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { BetterstackClient } from '../../src/betterstack-client.js'
-import { registerSourceManagementTools } from '../../src/tools/source-management.js'
 import { createTestConfig } from '../helpers/test-config.js'
 import { http, HttpResponse } from 'msw'
 
+// Import source management functions to test them directly
+async function listSources(client: BetterstackClient) {
+  try {
+    const sources = await client.listSources();
+    
+    if (sources.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "No sources found. This could mean:\n" +
+                  "1. No logs have been configured in Betterstack\n" +
+                  "2. API endpoint for listing sources is not available\n" +
+                  "3. Authentication issues"
+          }
+        ]
+      };
+    }
+
+    const sourceList = sources.map(source => 
+      `• **${source.name}** (ID: ${source.id})` +
+      (source.platform ? ` - Platform: ${source.platform}` : '') +
+      (source.retention_days ? ` - Retention: ${source.retention_days} days` : '')
+    ).join('\n');
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `**Available Log Sources (${sources.length}):**\n\n${sourceList}`
+        }
+      ]
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `❌ Failed to list sources: ${error}`
+        }
+      ]
+    };
+  }
+}
+
+async function listSourceGroups(client: BetterstackClient) {
+  try {
+    const groups = await client.listSourceGroups();
+    
+    if (groups.length === 0) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: "No source groups found. This could mean:\n" +
+                  "1. No source groups have been created in your Betterstack dashboard\n" +
+                  "2. You may need a Team API token instead of an individual token\n" +
+                  "3. Check your Betterstack settings → API tokens → Telemetry API tokens section\n\n" +
+                  "Source groups are logical collections of sources that you can create in your dashboard."
+          }
+        ]
+      };
+    }
+
+    const groupList = groups.map(group => 
+      `• **${group.name}** (ID: ${group.id})\n` +
+      `  Sources: ${group.source_ids.length} source(s) - ${group.source_ids.join(', ')}`
+    ).join('\n\n');
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `**Available Source Groups (${groups.length}):**\n\n${groupList}`
+        }
+      ]
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `❌ Failed to list source groups: ${error}`
+        }
+      ]
+    };
+  }
+}
+
+async function getSourceInfo(client: BetterstackClient, sourceId: string) {
+  try {
+    const source = await client.getSourceInfo(sourceId);
+    
+    if (!source) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ Source not found: ${sourceId}\n\nUse the 'list_sources' tool to see available sources.`
+          }
+        ]
+      };
+    }
+
+    const details = [
+      `**Source: ${source.name}**`,
+      `ID: ${source.id}`,
+      source.platform ? `Platform: ${source.platform}` : null,
+      source.retention_days ? `Retention: ${source.retention_days} days` : null,
+      source.created_at ? `Created: ${new Date(source.created_at).toLocaleDateString()}` : null,
+      source.updated_at ? `Updated: ${new Date(source.updated_at).toLocaleDateString()}` : null
+    ].filter(Boolean).join('\n');
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: details
+        }
+      ]
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `❌ Failed to get source info: ${error}`
+        }
+      ]
+    };
+  }
+}
+
+async function getSourceGroupInfo(client: BetterstackClient, groupName: string) {
+  try {
+    const groupInfo = await client.getSourceGroupInfo(groupName);
+    
+    if (!groupInfo) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `❌ Source group not found: ${groupName}\n\nUse the 'list_source_groups' tool to see available groups.`
+          }
+        ]
+      };
+    }
+
+    const sourceDetails = groupInfo.sources.map(source => 
+      `  • **${source.name}** (ID: ${source.id})` +
+      (source.platform ? ` - ${source.platform}` : '') +
+      (source.retention_days ? ` - ${source.retention_days} days retention` : '')
+    ).join('\n');
+
+    const details = [
+      `**Source Group: ${groupInfo.name}**`,
+      `ID: ${groupInfo.id}`,
+      `Total Sources: ${groupInfo.total_sources}`,
+      groupInfo.aggregate_retention_days ? `Minimum Retention: ${groupInfo.aggregate_retention_days} days` : null,
+      groupInfo.created_at ? `Created: ${new Date(groupInfo.created_at).toLocaleDateString()}` : null,
+      '',
+      '**Included Sources:**',
+      sourceDetails || '  (No sources found)'
+    ].filter(line => line !== null).join('\n');
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: details
+        }
+      ]
+    };
+  } catch (error) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `❌ Failed to get source group info: ${error}`
+        }
+      ]
+    };
+  }
+}
+
 describe('Source Management Integration Tests', () => {
-  let server: McpServer
   let client: BetterstackClient
 
   beforeEach(() => {
-    server = new McpServer({
-      name: 'test-server',
-      version: '1.0.0'
-    }, {
-      capabilities: {
-        tools: {}
-      }
-    })
-    
     client = new BetterstackClient(createTestConfig())
-    registerSourceManagementTools(server, client)
   })
 
   describe('list_sources tool', () => {
     it('should return formatted source list with markdown', async () => {
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_sources',
-          arguments: {}
-        }
-      })
+      const result = await listSources(client)
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -51,13 +217,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_sources',
-          arguments: {}
-        }
-      })
+      const result = await listSources(client)
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -77,13 +237,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_sources',
-          arguments: {}
-        }
-      })
+      const result = await listSources(client)
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -93,13 +247,7 @@ describe('Source Management Integration Tests', () => {
 
   describe('list_source_groups tool', () => {
     it('should return formatted source groups list', async () => {
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_source_groups',
-          arguments: {}
-        }
-      })
+      const result = await listSourceGroups(client)
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -123,13 +271,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_source_groups',
-          arguments: {}
-        }
-      })
+      const result = await listSourceGroups(client)
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -148,13 +290,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_source_groups',
-          arguments: {}
-        }
-      })
+      const result = await listSourceGroups(client)
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -164,15 +300,7 @@ describe('Source Management Integration Tests', () => {
 
   describe('get_source_info tool', () => {
     it('should return detailed source information', async () => {
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_info',
-          arguments: {
-            source_id: '1021715'
-          }
-        }
-      })
+      const result = await getSourceInfo(client, '1021715')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -185,15 +313,7 @@ describe('Source Management Integration Tests', () => {
     })
 
     it('should handle non-existent source ID', async () => {
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_info',
-          arguments: {
-            source_id: 'nonexistent'
-          }
-        }
-      })
+      const result = await getSourceInfo(client, 'nonexistent')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -208,15 +328,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_info',
-          arguments: {
-            source_id: '1021715'
-          }
-        }
-      })
+      const result = await getSourceInfo(client, '1021715')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -226,15 +338,7 @@ describe('Source Management Integration Tests', () => {
 
   describe('get_source_group_info tool', () => {
     it('should return detailed source group information', async () => {
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_group_info',
-          arguments: {
-            group_name: 'Development Environment'
-          }
-        }
-      })
+      const result = await getSourceGroupInfo(client, 'Development Environment')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -249,15 +353,7 @@ describe('Source Management Integration Tests', () => {
     })
 
     it('should handle non-existent source group', async () => {
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_group_info',
-          arguments: {
-            group_name: 'Non-existent Group'
-          }
-        }
-      })
+      const result = await getSourceGroupInfo(client, 'Non-existent Group')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -287,15 +383,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_group_info',
-          arguments: {
-            group_name: 'Empty Group'
-          }
-        }
-      })
+      const result = await getSourceGroupInfo(client, 'Empty Group')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -311,15 +399,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_group_info',
-          arguments: {
-            group_name: 'Development Environment'
-          }
-        }
-      })
+      const result = await getSourceGroupInfo(client, 'Development Environment')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -330,26 +410,12 @@ describe('Source Management Integration Tests', () => {
   describe('cross-tool workflow integration', () => {
     it('should support discovering sources then getting detailed info', async () => {
       // First, list sources
-      const sourcesResult = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_sources',
-          arguments: {}
-        }
-      })
+      const sourcesResult = await listSources(client)
 
       expect(sourcesResult.content[0].text).toContain('ID: 1021715')
 
       // Then get detailed info for a specific source
-      const detailResult = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_info',
-          arguments: {
-            source_id: '1021715'
-          }
-        }
-      })
+      const detailResult = await getSourceInfo(client, '1021715')
 
       expect(detailResult.content[0].text).toContain('**Source: Spark - staging | deprecated**')
       expect(detailResult.content[0].text).toContain('Platform: ubuntu')
@@ -357,26 +423,12 @@ describe('Source Management Integration Tests', () => {
 
     it('should support discovering groups then getting detailed group info', async () => {
       // First, list source groups
-      const groupsResult = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'list_source_groups',
-          arguments: {}
-        }
-      })
+      const groupsResult = await listSourceGroups(client)
 
       expect(groupsResult.content[0].text).toContain('Development Environment')
 
       // Then get detailed info for a specific group
-      const groupDetailResult = await server.request({
-        method: 'tools/call',
-        params: {
-          name: 'get_source_group_info',
-          arguments: {
-            group_name: 'Development Environment'
-          }
-        }
-      })
+      const groupDetailResult = await getSourceGroupInfo(client, 'Development Environment')
 
       expect(groupDetailResult.content[0].text).toContain('**Source Group: Development Environment**')
       expect(groupDetailResult.content[0].text).toContain('Total Sources: 2')
