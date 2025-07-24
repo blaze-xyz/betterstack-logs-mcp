@@ -463,14 +463,22 @@ describe('Error Handling', () => {
 - Integration tests for query workflows
 - Error handling for ClickHouse and query failures
 
-### Phase 4: Advanced Testing
+### Phase 4: Analysis Tools Testing
+- Unit tests for analysis-related tools:
+  - `analyze_errors`: Error pattern detection and classification
+  - `export_logs`: CSV/JSON export functionality and large dataset handling
+  - `get_log_statistics`: Statistical computation accuracy
+  - `debug_table_info`: Schema inspection capabilities
+- Integration tests for analysis workflows
+- Error handling for export and analysis failures
+
+### Phase 5: Advanced Testing
 - End-to-end MCP protocol tests
-- Analysis tools testing (`analyze_errors`, `export_logs`, `get_log_statistics`, `debug_table_info`)
 - Utility tools testing (`test_connection`)
 - Performance and load testing
 - Cross-browser compatibility (if applicable)
 
-### Phase 5: Optimization
+### Phase 6: Optimization
 - Test performance optimization
 - Documentation and examples
 - Developer experience improvements

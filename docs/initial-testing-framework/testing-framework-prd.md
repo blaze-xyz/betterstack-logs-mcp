@@ -134,8 +134,9 @@ Currently, the Betterstack Logs MCP server lacks systematic testing, making it d
 - **Phase 1**: Technical specification and framework setup
 - **Phase 2**: Unit and integration tests for all source-related tools (`list_sources`, `list_source_groups`, `get_source_info`, `get_source_group_info`)
 - **Phase 3**: Unit and integration tests for all query-related tools (`query_logs`, `search_logs`, `get_recent_logs`, `get_historical_logs`, `query_metrics`)
-- **Phase 4**: Advanced testing (end-to-end tests, analysis tools, utility tools, CI/CD integration)
-- **Phase 5**: Optimization (performance testing, documentation refinement, developer experience improvements)
+- **Phase 4**: Unit and integration tests for all analysis tools (`analyze_errors`, `export_logs`, `get_log_statistics`, `debug_table_info`)
+- **Phase 5**: Advanced testing (end-to-end tests, utility tools, CI/CD integration)
+- **Phase 6**: Optimization (performance testing, documentation refinement, developer experience improvements)
 
 ## Dependencies
 
