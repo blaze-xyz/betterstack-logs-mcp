@@ -27,35 +27,6 @@ export function createTestServer(): { server: McpServer, client: BetterstackClie
   registerQueryTools(server, client)
   registerAnalysisTools(server, client)
   
-  // Add test connection tool
-  server.tool(
-    "test_connection",
-    {},
-    async () => {
-      try {
-        const isConnected = await client.testConnection()
-        return {
-          content: [
-            {
-              type: "text",
-              text: isConnected 
-                ? "✅ Connection successful - both Telemetry API and ClickHouse are accessible"
-                : "❌ Connection failed - check your API token and network connectivity"
-            }
-          ]
-        }
-      } catch (error) {
-        return {
-          content: [
-            {
-              type: "text", 
-              text: `❌ Connection test failed: ${error}`
-            }
-          ]
-        }
-      }
-    }
-  )
   
   return { server, client }
 }
