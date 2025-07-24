@@ -175,7 +175,10 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
 2. Integration tests with mock Betterstack API
 3. User documentation with examples
 4. Configuration guide
-5. **Advanced Testing (Future)**: Code coverage reporting, performance testing, and Codecov integration
+5. **Advanced Testing (Future)**: 
+   - Code coverage reporting, performance testing, and Codecov integration
+   - End-to-end MCP protocol testing using `McpTestHelper` (currently unused but available)
+   - True request/response cycle validation for Claude integration
 
 ## Data Source Handling
 
