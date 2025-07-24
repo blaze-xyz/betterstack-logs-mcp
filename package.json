@@ -15,20 +15,34 @@
     "build": "tsc && shx chmod +x dist/*.js",
     "prepare": "npm run build",
     "watch": "tsc --watch",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "vitest",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "vitest run tests/integration",
+    "test:e2e": "vitest run tests/e2e",
+    "test:performance": "vitest run tests/performance",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:ci": "vitest run --coverage --reporter=verbose"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.0",
-    "zod": "^3.25.76",
     "axios": "^1.10.0",
+    "csv-stringify": "^6.5.2",
     "dotenv": "^16.6.1",
     "p-limit": "^5.0.0",
-    "csv-stringify": "^6.5.2"
+    "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@faker-js/faker": "^9.9.0",
+    "@types/node": "^20.19.9",
+    "@vitest/ui": "^3.2.4",
+    "c8": "^10.1.3",
+    "msw": "^2.10.4",
     "shx": "^0.3.4",
     "typescript": "^5.8.3",
-    "@types/node": "^20.19.6"
+    "vitest": "^3.2.4"
   },
   "packageManager": "yarn@4.6.0+sha256.eaf1eeabc164a44ca0b65dbdccd54af7e55f3ff9294b3ff318d5aaec92f2b20b"
 }
