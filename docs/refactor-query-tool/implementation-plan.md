@@ -21,7 +21,7 @@ Replace raw SQL interface with a structured parameter-based approach where:
 
 ## New Tool Interface Design
 
-### Tool Name: `query_logs_structured`
+### Tool Name: `query_logs` (replacement)
 
 ```typescript
 {
@@ -75,7 +75,7 @@ Replace raw SQL interface with a structured parameter-based approach where:
 ## Implementation Strategy
 
 ### Phase 1: Core Infrastructure
-1. **Create new structured tool** alongside existing `query_logs`
+1. **Replace existing `query_logs` tool** with new structured interface
 2. **Build query compiler** that translates structured params to ClickHouse SQL
 3. **Implement field validation** and error handling
 4. **Add comprehensive tests** for query generation
@@ -86,11 +86,10 @@ Replace raw SQL interface with a structured parameter-based approach where:
 3. **Add query optimization** (automatic LIMIT enforcement, index hints)
 4. **Create query explain functionality** for debugging
 
-### Phase 3: Migration & Polish
-1. **Add backward compatibility** warning for raw SQL tool
-2. **Update documentation** and examples
-3. **Deprecate old tool** with migration guidance
-4. **Performance optimization** and caching
+### Phase 3: Polish & Optimization
+1. **Update documentation** and examples
+2. **Performance optimization** and caching
+3. **Advanced filtering features** based on usage patterns
 
 ## Example Usage Transformations
 
@@ -175,27 +174,27 @@ Structured Params → Validate → Resolve Sources → Build Filters → Generat
 1. **Tool Schema Documentation**: Clear parameter descriptions and examples
 2. **Field Reference**: Complete list of available fields and their meanings
 3. **Filter Examples**: Common filtering patterns and use cases
-4. **Migration Guide**: How to convert raw SQL queries to structured format
+4. **Usage Guide**: How to construct structured queries for common log analysis tasks
 
 ## Success Metrics
 
 1. **Query Success Rate**: % of queries that work on first try
 2. **Error Reduction**: Decrease in 404/syntax errors from query tool
-3. **Usage Adoption**: Migration from raw SQL to structured tool
-4. **AI Satisfaction**: Reduced back-and-forth iterations in Claude Desktop
+3. **AI Satisfaction**: Reduced back-and-forth iterations in Claude Desktop
+4. **User Experience**: Intuitive structured interface over raw SQL
 
 ## Risk Mitigation
 
-1. **Backward Compatibility**: Keep old tool during transition period
-2. **Feature Parity**: Ensure structured tool can handle all current use cases
-3. **Performance**: Structured approach should be as fast as raw SQL
-4. **Flexibility**: Advanced users can still access raw SQL if needed
+1. **Feature Parity**: Ensure structured tool can handle all current use cases
+2. **Performance**: Structured approach should be as fast as raw SQL
+3. **Testing**: Comprehensive test coverage for query generation
+4. **Rollback Plan**: Keep backup of old tool implementation during development
 
 ## Timeline Estimate
 
 - **Phase 1 (Core)**: 2-3 days
 - **Phase 2 (Enhanced)**: 2-3 days  
-- **Phase 3 (Migration)**: 1-2 days
+- **Phase 3 (Polish)**: 1 day
 - **Total**: ~1 week for complete implementation
 
 ## Next Steps
