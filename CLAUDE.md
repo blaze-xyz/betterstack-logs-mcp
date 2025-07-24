@@ -13,6 +13,9 @@ I am also an expert in the BetterStack API ecosystem:
 - Authentication patterns and error handling
 - Rate limiting and caching strategies
 
+For comprehensive BetterStack API reference and endpoint documentation, see:
+@context/betterstack-api.md
+
 ## Project Context
 
 This is a BetterStack Logs MCP server that provides Claude with capabilities to:
