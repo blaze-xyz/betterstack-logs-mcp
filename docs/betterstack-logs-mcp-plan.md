@@ -171,10 +171,15 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
    - Include metadata in exports
 
 ### Phase 5: Testing & Documentation
-1. Unit tests for each tool
-2. Integration tests with mock Betterstack API
-3. User documentation with examples
-4. Configuration guide
+1. **Unit tests** for each tool (business logic and API client methods)
+2. **Integration tests** for MCP protocol testing using `McpTestHelper` (currently unused but available)
+3. **Manual testing** with Claude (replaces traditional end-to-end testing)
+4. User documentation with examples
+5. Configuration guide
+6. **Advanced Testing (Future)**: 
+   - Code coverage reporting, performance testing, and Codecov integration
+
+**Note**: End-to-end testing is not applicable for MCP servers since manual testing with Claude covers the complete user workflow.
 
 ## Data Source Handling
 

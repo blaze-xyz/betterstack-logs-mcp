@@ -2,17 +2,16 @@
 
 ## Architecture Overview
 
-The testing framework will be built using **Vitest** as the primary testing framework, with a modular architecture that supports unit, integration, and end-to-end testing of all MCP tools.
+The testing framework will be built using **Vitest** as the primary testing framework, with a modular architecture that supports unit and integration testing of all MCP tools. Manual testing with Claude replaces traditional end-to-end testing.
 
 ```
 tests/
 ├── __mocks__/           # Mock data and API responses
 ├── fixtures/            # Test data and sample responses
-├── helpers/             # Test utilities and setup functions
-├── unit/                # Unit tests for individual tools
-├── integration/         # Integration tests with mocked APIs
-├── e2e/                 # End-to-end MCP protocol tests
-└── performance/         # Performance and load tests
+├── helpers/             # Test utilities and setup functions (including McpTestHelper)
+├── unit/                # Unit tests for individual tools and client methods
+├── integration/         # Integration tests for MCP protocol using McpTestHelper
+└── performance/         # Performance and load tests (future)
 ```
 
 ## Technology Stack
@@ -180,31 +179,23 @@ describe('Query Workflow Integration', () => {
 })
 ```
 
-### 6. End-to-End Test Structure
+### 6. Manual Testing Guidelines
 
-```typescript
-// tests/e2e/mcp-protocol.test.ts
-import { describe, it, expect } from 'vitest'
-import { MCPTestClient } from '../helpers/mcp-test-client'
+Manual testing with Claude Desktop replaces traditional end-to-end testing for MCP servers:
 
-describe('MCP Protocol E2E Tests', () => {
-  it('should handle complete tool lifecycle via MCP protocol', async () => {
-    const client = new MCPTestClient()
-    await client.connect()
-    
-    // Test tool discovery
-    const tools = await client.listTools()
-    expect(tools).toHaveLength(15)
-    
-    // Test tool execution
-    const result = await client.callTool('list_sources', {})
-    expect(result.isError).toBe(false)
-    expect(result.content).toBeTruthy()
-    
-    await client.disconnect()
-  })
-})
-```
+**Testing Approach:**
+- Test all tools through actual Claude conversations
+- Validate tool responses are properly formatted and helpful
+- Test error scenarios (invalid API tokens, network issues, etc.)
+- Verify cross-tool workflows and context preservation
+
+**Key Scenarios to Test:**
+- Complete discovery workflow: list sources → get source info → query logs
+- Error handling: test with invalid tokens, missing sources, etc.
+- Performance: test with large queries and datasets
+- Tool chaining: use results from one tool as input to another
+
+This approach provides real-world validation without complex automated end-to-end test infrastructure.
 
 ### 7. Performance Test Structure
 

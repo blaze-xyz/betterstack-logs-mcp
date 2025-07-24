@@ -64,38 +64,6 @@ registerSourceManagementTools(server, client);
 registerQueryTools(server, client);
 registerAnalysisTools(server, client);
 
-// Add a connection test tool
-server.tool(
-  "test_connection",
-  {},
-  async () => {
-    try {
-      logToFile('INFO', 'Running connection test tool...');
-      const isConnected = await client.testConnection();
-      logToFile('INFO', 'Connection test result', { isConnected });
-      return {
-        content: [
-          {
-            type: "text",
-            text: isConnected 
-              ? "✅ Successfully connected to Betterstack API"
-              : "❌ Failed to connect to Betterstack API"
-          }
-        ]
-      };
-    } catch (error) {
-      logToFile('ERROR', 'Connection test tool failed', error);
-      return {
-        content: [
-          {
-            type: "text",
-            text: `❌ Connection test failed: ${error}`
-          }
-        ]
-      };
-    }
-  }
-);
 
 // Start the server
 logToFile('INFO', 'Starting MCP server...');

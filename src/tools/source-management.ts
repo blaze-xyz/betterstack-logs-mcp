@@ -211,4 +211,34 @@ export function registerSourceManagementTools(server: McpServer, client: Betters
       }
     }
   );
+
+  // Test connection to both Telemetry API and ClickHouse
+  server.tool(
+    "test_connection",
+    {},
+    async () => {
+      try {
+        const isConnected = await client.testConnection();
+        return {
+          content: [
+            {
+              type: "text",
+              text: isConnected 
+                ? "✅ Connection successful - both Telemetry API and ClickHouse are accessible"
+                : "❌ Connection failed - check your API token and network connectivity"
+            }
+          ]
+        };
+      } catch (error) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ Connection test failed: ${error}`
+            }
+          ]
+        };
+      }
+    }
+  );
 }
