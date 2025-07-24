@@ -175,6 +175,7 @@ After analyzing the Betterstack documentation, I recommend using the **Direct HT
 2. Integration tests with mock Betterstack API
 3. User documentation with examples
 4. Configuration guide
+5. **Advanced Testing (Future)**: Code coverage reporting, performance testing, and Codecov integration
 
 ## Data Source Handling
 

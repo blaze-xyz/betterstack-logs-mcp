@@ -32,13 +32,3 @@ jobs:
       - name: Run integration tests
         run: npm run test:integration
       
-      - name: Generate coverage report
-        run: npm run test:coverage
-      
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v3
-        with:
-          file: ./coverage/lcov.info
-          fail_ci_if_error: true
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
