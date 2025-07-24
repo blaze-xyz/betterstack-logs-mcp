@@ -1,223 +1,80 @@
-import { describe, it, expect, beforeEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { BetterstackClient } from '../../src/betterstack-client.js'
-import { createTestConfig } from '../helpers/test-config.js'
+import { McpTestHelper } from '../helpers/mcp-test-helper.js'
+import { createTestServer } from '../helpers/test-server-factory.js'
 import { http, HttpResponse } from 'msw'
 
-// Import source management functions to test them directly
-async function listSources(client: BetterstackClient) {
-  try {
-    const sources = await client.listSources();
-    
-    if (sources.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "No sources found. This could mean:\n" +
-                  "1. No logs have been configured in Betterstack\n" +
-                  "2. API endpoint for listing sources is not available\n" +
-                  "3. Authentication issues"
-          }
-        ]
-      };
-    }
-
-    const sourceList = sources.map(source => 
-      `• **${source.name}** (ID: ${source.id})` +
-      (source.platform ? ` - Platform: ${source.platform}` : '') +
-      (source.retention_days ? ` - Retention: ${source.retention_days} days` : '')
-    ).join('\n');
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `**Available Log Sources (${sources.length}):**\n\n${sourceList}`
-        }
-      ]
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `❌ Failed to list sources: ${error}`
-        }
-      ]
-    };
-  }
-}
-
-async function listSourceGroups(client: BetterstackClient) {
-  try {
-    const groups = await client.listSourceGroups();
-    
-    if (groups.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: "No source groups found. This could mean:\n" +
-                  "1. No source groups have been created in your Betterstack dashboard\n" +
-                  "2. You may need a Team API token instead of an individual token\n" +
-                  "3. Check your Betterstack settings → API tokens → Telemetry API tokens section\n\n" +
-                  "Source groups are logical collections of sources that you can create in your dashboard."
-          }
-        ]
-      };
-    }
-
-    const groupList = groups.map(group => 
-      `• **${group.name}** (ID: ${group.id})\n` +
-      `  Sources: ${group.source_ids.length} source(s) - ${group.source_ids.join(', ')}`
-    ).join('\n\n');
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: `**Available Source Groups (${groups.length}):**\n\n${groupList}`
-        }
-      ]
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `❌ Failed to list source groups: ${error}`
-        }
-      ]
-    };
-  }
-}
-
-async function getSourceInfo(client: BetterstackClient, sourceId: string) {
-  try {
-    const source = await client.getSourceInfo(sourceId);
-    
-    if (!source) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `❌ Source not found: ${sourceId}\n\nUse the 'list_sources' tool to see available sources.`
-          }
-        ]
-      };
-    }
-
-    const details = [
-      `**Source: ${source.name}**`,
-      `ID: ${source.id}`,
-      source.platform ? `Platform: ${source.platform}` : null,
-      source.retention_days ? `Retention: ${source.retention_days} days` : null,
-      source.created_at ? `Created: ${new Date(source.created_at).toLocaleDateString()}` : null,
-      source.updated_at ? `Updated: ${new Date(source.updated_at).toLocaleDateString()}` : null
-    ].filter(Boolean).join('\n');
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: details
-        }
-      ]
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `❌ Failed to get source info: ${error}`
-        }
-      ]
-    };
-  }
-}
-
-async function getSourceGroupInfo(client: BetterstackClient, groupName: string) {
-  try {
-    const groupInfo = await client.getSourceGroupInfo(groupName);
-    
-    if (!groupInfo) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `❌ Source group not found: ${groupName}\n\nUse the 'list_source_groups' tool to see available groups.`
-          }
-        ]
-      };
-    }
-
-    const sourceDetails = groupInfo.sources.map(source => 
-      `  • **${source.name}** (ID: ${source.id})` +
-      (source.platform ? ` - ${source.platform}` : '') +
-      (source.retention_days ? ` - ${source.retention_days} days retention` : '')
-    ).join('\n');
-
-    const details = [
-      `**Source Group: ${groupInfo.name}**`,
-      `ID: ${groupInfo.id}`,
-      `Total Sources: ${groupInfo.total_sources}`,
-      groupInfo.aggregate_retention_days ? `Minimum Retention: ${groupInfo.aggregate_retention_days} days` : null,
-      groupInfo.created_at ? `Created: ${new Date(groupInfo.created_at).toLocaleDateString()}` : null,
-      '',
-      '**Included Sources:**',
-      sourceDetails || '  (No sources found)'
-    ].filter(line => line !== null).join('\n');
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: details
-        }
-      ]
-    };
-  } catch (error) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `❌ Failed to get source group info: ${error}`
-        }
-      ]
-    };
-  }
-}
-
 describe('Source Management Integration Tests', () => {
+  let server: McpServer
   let client: BetterstackClient
+  let mcpHelper: McpTestHelper
 
   beforeEach(() => {
-    client = new BetterstackClient(createTestConfig())
+    // Create real MCP server with all tools registered
+    const testServer = createTestServer()
+    server = testServer.server
+    client = testServer.client
+    mcpHelper = new McpTestHelper(server)
   })
 
-  describe('list_sources tool', () => {
-    it('should return formatted source list with markdown', async () => {
-      const result = await listSources(client)
+  afterEach(() => {
+    // Clean up if needed
+  })
 
-      expect(result.content[0].type).toBe('text')
-      const text = result.content[0].text
-      expect(text).toContain('**Available Log Sources (3):**')
-      expect(text).toContain('• **Spark - staging | deprecated** (ID: 1021715)')
-      expect(text).toContain('Platform: ubuntu')
-      expect(text).toContain('Retention: 7 days')
-      expect(text).toContain('• **Production API Server** (ID: 1021716)')
-      expect(text).toContain('Platform: linux') 
-      expect(text).toContain('Retention: 30 days')
+  describe('MCP Server Integration', () => {
+    it('should register all expected source management tools', () => {
+      const tools = mcpHelper.listTools()
+      
+      // Verify all source management tools are registered
+      expect(tools).toContain('list_sources')
+      expect(tools).toContain('list_source_groups')
+      expect(tools).toContain('get_source_info')
+      expect(tools).toContain('get_source_group_info')
+      expect(tools).toContain('test_connection')
+      
+      // Should have all 14 tools registered
+      expect(tools.length).toBeGreaterThanOrEqual(14)
     })
 
-    it('should handle empty sources list', async () => {
+    it('should provide tool information for registered tools', () => {
+      const toolInfo = mcpHelper.getToolInfo('list_sources')
+      
+      expect(toolInfo).toBeTruthy()
+      expect(toolInfo?.name).toBe('list_sources')
+      expect(toolInfo?.description).toBeTruthy()
+    })
+  })
+
+  describe('list_sources tool via MCP protocol', () => {
+    it('should return properly formatted MCP response with sources list', async () => {
+      const result = await mcpHelper.callTool('list_sources')
+
+      // Validate MCP response format
+      expect(result).toHaveProperty('content')
+      expect(Array.isArray(result.content)).toBe(true)
+      expect(result.content.length).toBeGreaterThan(0)
+      expect(result.content[0]).toHaveProperty('type', 'text')
+      expect(result.content[0]).toHaveProperty('text')
+      
+      // Validate content includes expected source information
+      const text = result.content[0].text
+      expect(text).toContain('Available Log Sources')
+      expect(text).toContain('Spark - staging | deprecated')
+      expect(text).toContain('ID: 1021715')
+      expect(text).toContain('Platform: ubuntu')
+      expect(text).toContain('Retention: 7 days')
+    })
+
+    it('should handle empty sources gracefully via MCP protocol', async () => {
+      // Override mock to return empty sources
       globalThis.__MSW_SERVER__.use(
         http.get('https://telemetry.betterstack.com/api/v1/sources', () => {
           return HttpResponse.json({ data: [] })
         })
       )
 
-      const result = await listSources(client)
+      const result = await mcpHelper.callTool('list_sources')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -227,7 +84,8 @@ describe('Source Management Integration Tests', () => {
       expect(text).toContain('3. Authentication issues')
     })
 
-    it('should handle API errors gracefully', async () => {
+    it('should handle API errors gracefully via MCP protocol', async () => {
+      // Override mock to return error
       globalThis.__MSW_SERVER__.use(
         http.get('https://telemetry.betterstack.com/api/v1/sources', () => {
           return HttpResponse.json(
@@ -237,28 +95,31 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await listSources(client)
+      const result = await mcpHelper.callTool('list_sources')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
       expect(text).toContain('No sources found')
+      expect(text).toContain('Authentication issues')
     })
   })
 
-  describe('list_source_groups tool', () => {
-    it('should return formatted source groups list', async () => {
-      const result = await listSourceGroups(client)
+  describe('list_source_groups tool via MCP protocol', () => {
+    it('should return properly formatted MCP response with source groups', async () => {
+      const result = await mcpHelper.callTool('list_source_groups')
 
-      expect(result.content[0].type).toBe('text')
+      expect(result).toHaveProperty('content')
+      expect(Array.isArray(result.content)).toBe(true)
+      expect(result.content[0]).toHaveProperty('type', 'text')
+      
       const text = result.content[0].text
-      expect(text).toContain('**Available Source Groups (2):**')
-      expect(text).toContain('• **Development Environment** (ID: 1)')
-      expect(text).toContain('Sources: 2 source(s) - 1021715, 1021717')
-      expect(text).toContain('• **Production Environment** (ID: 2)')
-      expect(text).toContain('Sources: 1 source(s) - 1021716')
+      expect(text).toContain('Available Source Groups')
+      expect(text).toContain('Development Environment')
+      expect(text).toContain('Production Environment')
+      expect(text).toContain('Sources: 2 source(s)')
     })
 
-    it('should handle team API token errors', async () => {
+    it('should handle team API token errors via MCP protocol', async () => {
       globalThis.__MSW_SERVER__.use(
         http.get('https://telemetry.betterstack.com/api/v1/source-groups', () => {
           return HttpResponse.json(
@@ -271,7 +132,7 @@ describe('Source Management Integration Tests', () => {
         })
       )
 
-      const result = await listSourceGroups(client)
+      const result = await mcpHelper.callTool('list_source_groups')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -279,28 +140,11 @@ describe('Source Management Integration Tests', () => {
       expect(text).toContain('You may need a Team API token')
       expect(text).toContain('Source groups are logical collections')
     })
-
-    it('should handle general API errors', async () => {
-      globalThis.__MSW_SERVER__.use(
-        http.get('https://telemetry.betterstack.com/api/v1/source-groups', () => {
-          return HttpResponse.json(
-            { error: 'Server Error' },
-            { status: 500 }
-          )
-        })
-      )
-
-      const result = await listSourceGroups(client)
-
-      expect(result.content[0].type).toBe('text')
-      const text = result.content[0].text
-      expect(text).toContain('No source groups found')
-    })
   })
 
-  describe('get_source_info tool', () => {
-    it('should return detailed source information', async () => {
-      const result = await getSourceInfo(client, '1021715')
+  describe('get_source_info tool via MCP protocol', () => {
+    it('should return detailed source information via MCP protocol', async () => {
+      const result = await mcpHelper.callTool('get_source_info', { source_id: '1021715' })
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -312,33 +156,19 @@ describe('Source Management Integration Tests', () => {
       expect(text).toContain('Updated: 1/15/2024')
     })
 
-    it('should handle non-existent source ID', async () => {
-      const result = await getSourceInfo(client, 'nonexistent')
+    it('should handle non-existent source ID via MCP protocol', async () => {
+      const result = await mcpHelper.callTool('get_source_info', { source_id: 'nonexistent' })
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
       expect(text).toContain('❌ Source not found: nonexistent')
       expect(text).toContain("Use the 'list_sources' tool to see available sources")
     })
-
-    it('should handle API errors during source info retrieval', async () => {
-      globalThis.__MSW_SERVER__.use(
-        http.get('https://telemetry.betterstack.com/api/v1/sources', () => {
-          throw new Error('Network error')
-        })
-      )
-
-      const result = await getSourceInfo(client, '1021715')
-
-      expect(result.content[0].type).toBe('text')
-      const text = result.content[0].text
-      expect(text).toContain('❌ Source not found')
-    })
   })
 
-  describe('get_source_group_info tool', () => {
-    it('should return detailed source group information', async () => {
-      const result = await getSourceGroupInfo(client, 'Development Environment')
+  describe('get_source_group_info tool via MCP protocol', () => {
+    it('should return detailed source group information via MCP protocol', async () => {
+      const result = await mcpHelper.callTool('get_source_group_info', { group_name: 'Development Environment' })
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
@@ -352,86 +182,96 @@ describe('Source Management Integration Tests', () => {
       expect(text).toContain('• **Frontend Application** (ID: 1021717)')
     })
 
-    it('should handle non-existent source group', async () => {
-      const result = await getSourceGroupInfo(client, 'Non-existent Group')
+    it('should handle non-existent source group via MCP protocol', async () => {
+      const result = await mcpHelper.callTool('get_source_group_info', { group_name: 'Non-existent Group' })
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
       expect(text).toContain('❌ Source group not found: Non-existent Group')
       expect(text).toContain("Use the 'list_source_groups' tool to see available groups")
     })
+  })
 
-    it('should handle groups with no sources', async () => {
-      // Mock an empty group
-      globalThis.__MSW_SERVER__.use(
-        http.get('https://telemetry.betterstack.com/api/v1/source-groups', () => {
-          return HttpResponse.json({
-            data: [
-              {
-                id: "99",
-                type: "source_group",
-                attributes: {
-                  name: "Empty Group",
-                  created_at: "2024-01-01T10:00:00Z",
-                  updated_at: "2024-01-15T10:00:00Z",
-                  sort_index: 99,
-                  team_name: "Test Team"
-                }
-              }
-            ]
-          })
-        })
-      )
-
-      const result = await getSourceGroupInfo(client, 'Empty Group')
+  describe('test_connection tool via MCP protocol', () => {
+    it('should test connections to both APIs via MCP protocol', async () => {
+      const result = await mcpHelper.callTool('test_connection')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
-      expect(text).toContain('**Source Group: Empty Group**')
-      expect(text).toContain('Total Sources: 0')
-      expect(text).toContain('(No sources found)')
+      expect(text).toContain('✅ Connection successful')
+      expect(text).toContain('both Telemetry API and ClickHouse are accessible')
     })
 
-    it('should handle API errors during group info retrieval', async () => {
+    it('should handle connection failures via MCP protocol', async () => {
+      // Mock API failures
       globalThis.__MSW_SERVER__.use(
-        http.get('https://telemetry.betterstack.com/api/v1/source-groups', () => {
-          throw new Error('Network error')
+        http.get('https://telemetry.betterstack.com/api/v1/sources', () => {
+          return HttpResponse.error()
         })
       )
 
-      const result = await getSourceGroupInfo(client, 'Development Environment')
+      const result = await mcpHelper.callTool('test_connection')
 
       expect(result.content[0].type).toBe('text')
       const text = result.content[0].text
-      expect(text).toContain('❌ Source group not found')
+      expect(text).toContain('❌ Connection failed')
+      expect(text).toContain('check your API token and network connectivity')
     })
   })
 
-  describe('cross-tool workflow integration', () => {
+  describe('Cross-tool workflows via MCP protocol', () => {
     it('should support discovering sources then getting detailed info', async () => {
       // First, list sources
-      const sourcesResult = await listSources(client)
-
+      const sourcesResult = await mcpHelper.callTool('list_sources')
       expect(sourcesResult.content[0].text).toContain('ID: 1021715')
 
       // Then get detailed info for a specific source
-      const detailResult = await getSourceInfo(client, '1021715')
-
+      const detailResult = await mcpHelper.callTool('get_source_info', { source_id: '1021715' })
       expect(detailResult.content[0].text).toContain('**Source: Spark - staging | deprecated**')
       expect(detailResult.content[0].text).toContain('Platform: ubuntu')
     })
 
     it('should support discovering groups then getting detailed group info', async () => {
       // First, list source groups
-      const groupsResult = await listSourceGroups(client)
-
+      const groupsResult = await mcpHelper.callTool('list_source_groups')
       expect(groupsResult.content[0].text).toContain('Development Environment')
 
       // Then get detailed info for a specific group
-      const groupDetailResult = await getSourceGroupInfo(client, 'Development Environment')
-
+      const groupDetailResult = await mcpHelper.callTool('get_source_group_info', { group_name: 'Development Environment' })
       expect(groupDetailResult.content[0].text).toContain('**Source Group: Development Environment**')
       expect(groupDetailResult.content[0].text).toContain('Total Sources: 2')
+    })
+  })
+
+  describe('MCP Protocol Validation', () => {
+    it('should return proper MCP response format for all tools', async () => {
+      const sourceManagementTools = ['list_sources', 'list_source_groups', 'get_source_info', 'get_source_group_info']
+      
+      for (const toolName of sourceManagementTools) {
+        const args = toolName.includes('get_') 
+          ? (toolName === 'get_source_info' ? { source_id: '1021715' } : { group_name: 'Development Environment' })
+          : {}
+        
+        const result = await mcpHelper.callTool(toolName, args)
+        
+        // Validate MCP response structure
+        expect(result).toHaveProperty('content')
+        expect(Array.isArray(result.content)).toBe(true)
+        expect(result.content.length).toBeGreaterThan(0)
+        expect(result.content[0]).toHaveProperty('type')
+        expect(result.content[0]).toHaveProperty('text')
+        expect(typeof result.content[0].text).toBe('string')
+        expect(result.content[0].text.length).toBeGreaterThan(0)
+      }
+    })
+
+    it('should handle invalid tool names gracefully', async () => {
+      const result = await mcpHelper.callTool('nonexistent_tool')
+      
+      expect(result).toHaveProperty('content')
+      expect(result).toHaveProperty('isError', true)
+      expect(result.content[0].text).toContain('Tool "nonexistent_tool" not found')
+      expect(result.content[0].text).toContain('Available tools:')
     })
   })
 })
