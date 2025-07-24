@@ -131,11 +131,11 @@ Currently, the Betterstack Logs MCP server lacks systematic testing, making it d
 
 ## Timeline
 
-- **Week 1**: Technical specification and framework setup
-- **Week 2**: Unit tests for all tools
-- **Week 3**: Integration tests and mock data setup
-- **Week 4**: End-to-end tests and CI/CD integration
-- **Week 5**: Documentation and refinement
+- **Phase 1**: Technical specification and framework setup
+- **Phase 2**: Unit and integration tests for all source-related tools (`list_sources`, `list_source_groups`, `get_source_info`, `get_source_group_info`)
+- **Phase 3**: Unit and integration tests for all query-related tools (`query_logs`, `search_logs`, `get_recent_logs`, `get_historical_logs`, `query_metrics`)
+- **Phase 4**: Advanced testing (end-to-end tests, analysis tools, utility tools, CI/CD integration)
+- **Phase 5**: Optimization (performance testing, documentation refinement, developer experience improvements)
 
 ## Dependencies
 

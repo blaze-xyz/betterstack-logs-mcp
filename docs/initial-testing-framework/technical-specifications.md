@@ -438,23 +438,39 @@ describe('Error Handling', () => {
 
 ## Migration Strategy
 
-### Phase 1: Foundation (Week 1)
+### Phase 1: Foundation
 - Set up Vitest configuration
 - Create basic test structure
 - Implement mock handlers for core APIs
 - Add CI/CD integration
 
-### Phase 2: Core Testing (Week 2-3)
-- Unit tests for all 15 MCP tools
-- Integration tests for key workflows
-- Error handling test coverage
+### Phase 2: Source Management Testing
+- Unit tests for source-related tools:
+  - `list_sources`: Source enumeration and filtering
+  - `list_source_groups`: Group discovery and organization  
+  - `get_source_info`: Detailed source information retrieval
+  - `get_source_group_info`: Group metadata and member listing
+- Integration tests for source management workflows
+- Error handling for source API failures
 
-### Phase 3: Advanced Testing (Week 4)
+### Phase 3: Query Tools Testing
+- Unit tests for query-related tools:
+  - `query_logs`: ClickHouse SQL execution and result formatting
+  - `search_logs`: Text search across different log types
+  - `get_recent_logs`: Time-based filtering and pagination
+  - `get_historical_logs`: Date range queries and large result handling
+  - `query_metrics`: Metrics aggregation and visualization data
+- Integration tests for query workflows
+- Error handling for ClickHouse and query failures
+
+### Phase 4: Advanced Testing
 - End-to-end MCP protocol tests
+- Analysis tools testing (`analyze_errors`, `export_logs`, `get_log_statistics`, `debug_table_info`)
+- Utility tools testing (`test_connection`)
 - Performance and load testing
 - Cross-browser compatibility (if applicable)
 
-### Phase 4: Optimization (Week 5)
+### Phase 5: Optimization
 - Test performance optimization
 - Documentation and examples
 - Developer experience improvements
