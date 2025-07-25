@@ -81,6 +81,7 @@ export interface QueryResult {
     query_time_ms?: number;
     sources_queried: string[];
     api_used?: string;
+    executed_sql?: string;
   };
 }
 

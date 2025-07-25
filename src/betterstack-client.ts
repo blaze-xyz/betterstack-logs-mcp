@@ -415,7 +415,8 @@ export class BetterstackClient {
         meta: {
           total_rows: response.data.rows || response.data.length,
           sources_queried: sources.map(s => s.name),
-          api_used: 'clickhouse'
+          api_used: 'clickhouse',
+          executed_sql: finalQuery.replace(' FORMAT JSON', '')
         }
       };
     } catch (error: any) {

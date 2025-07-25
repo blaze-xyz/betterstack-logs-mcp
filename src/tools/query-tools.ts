@@ -452,7 +452,7 @@ Generated: ${builtQuery}`
           `**Query Results**`,
           `Sources queried: ${result.meta?.sources_queried?.join(', ') || 'unknown'}`,
           `Total rows: ${result.meta?.total_rows || result.data.length}`,
-          `Generated SQL: \`${query}\``,
+          `Executed SQL: \`${result.meta?.executed_sql || query}\``,
           '',
           '**Data:**'
         ];
