@@ -509,8 +509,8 @@ ${errorDetails}`
     }
   );
 
-  // Simple text search across logs
-  server.tool(
+  // Simple text search across logs - COMMENTED OUT FOR FOCUSED TESTING
+  /*server.tool(
     "search_logs",
     {
       search_text: z.string().describe("Text to search for in log messages"),
@@ -611,9 +611,10 @@ ${errorDetails}`
         };
       }
     }
-  );
+  );*/
 
-  // Get recent logs with optional filters
+  // Get recent logs with optional filters - COMMENTED OUT FOR FOCUSED TESTING
+  /*
   server.tool(
     "get_recent_logs",
     {
@@ -693,7 +694,8 @@ ${errorDetails}`
     }
   );
 
-  // Get historical logs with date ranges
+  // Get historical logs with date ranges - COMMENTED OUT FOR FOCUSED TESTING
+  /*
   server.tool(
     "get_historical_logs",
     {
@@ -780,7 +782,8 @@ ${errorDetails}`
     }
   );
 
-  // Query performance metrics
+  // Query performance metrics - COMMENTED OUT FOR FOCUSED TESTING
+  /*
   server.tool(
     "query_metrics",
     {
@@ -861,5 +864,5 @@ ${errorDetails}`
         };
       }
     }
-  );
+  );*/
 }

@@ -65,7 +65,7 @@ try {
 // Register all tool categories
 registerSourceManagementTools(server, client);
 registerQueryTools(server, client);
-registerAnalysisTools(server, client);
+// registerAnalysisTools(server, client); // Commented out for focused testing
 
 
 // Start the server

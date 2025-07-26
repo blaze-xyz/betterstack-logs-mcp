@@ -121,7 +121,11 @@ export class BetterstackClient {
 
   async testConnection(): Promise<boolean> {
     try {
-      logToFile('INFO', 'Testing connection to Betterstack APIs...');
+      logToFile('INFO', 'Testing connection to Betterstack APIs...', {
+        telemetryEndpoint: this.config.telemetryEndpoint,
+        clickhouseEndpoint: this.config.clickhouseQueryEndpoint,
+        clickhouseUsername: this.config.clickhouseUsername
+      });
       
       // Test both authentication systems
       const [telemetryTest, clickhouseTest] = await Promise.allSettled([
@@ -135,6 +139,39 @@ export class BetterstackClient {
 
       const telemetrySuccess = telemetryTest.status === 'fulfilled';
       const clickhouseSuccess = clickhouseTest.status === 'fulfilled';
+      
+      // Log detailed results for debugging
+      if (telemetryTest.status === 'fulfilled') {
+        logToFile('DEBUG', 'Telemetry API test successful', {
+          status: telemetryTest.value.status,
+          dataReceived: !!telemetryTest.value.data,
+          endpoint: this.config.telemetryEndpoint
+        });
+      } else {
+        logToFile('ERROR', 'Telemetry API test failed', {
+          error: telemetryTest.reason?.message,
+          response: telemetryTest.reason?.response?.data,
+          status: telemetryTest.reason?.response?.status,
+          endpoint: this.config.telemetryEndpoint
+        });
+      }
+
+      if (clickhouseTest.status === 'fulfilled') {
+        logToFile('DEBUG', 'ClickHouse test successful', {
+          status: clickhouseTest.value.status,
+          dataReceived: !!clickhouseTest.value.data,
+          endpoint: this.config.clickhouseQueryEndpoint,
+          username: this.config.clickhouseUsername
+        });
+      } else {
+        logToFile('ERROR', 'ClickHouse test failed', {
+          error: clickhouseTest.reason?.message,
+          response: clickhouseTest.reason?.response?.data,
+          status: clickhouseTest.reason?.response?.status,
+          endpoint: this.config.clickhouseQueryEndpoint,
+          username: this.config.clickhouseUsername
+        });
+      }
       
       logToFile('INFO', 'Connection test results', {
         telemetrySuccess,
@@ -156,6 +193,10 @@ export class BetterstackClient {
         return false;
       }
     } catch (error) {
+      logToFile('ERROR', 'Connection test exception', {
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       console.error('Connection test failed:', error);
       return false;
     }
@@ -163,10 +204,15 @@ export class BetterstackClient {
 
   async listSources(): Promise<Source[]> {
     if (this.sourcesCache && this.isCacheValid(this.sourcesCache.timestamp)) {
+      logToFile('DEBUG', 'Using cached sources', { 
+        sourceCount: this.sourcesCache.data.length,
+        cacheAge: Date.now() - this.sourcesCache.timestamp
+      });
       return this.sourcesCache.data;
     }
 
     try {
+      logToFile('INFO', 'Fetching sources from Telemetry API...');
       const response = await BetterstackClient.rateLimiter(() => 
         this.telemetryClient.get('/api/v1/sources', {
           params: {
@@ -177,12 +223,36 @@ export class BetterstackClient {
       );
       
       const apiSources: BetterstackApiSource[] = response.data.data || [];
+      logToFile('DEBUG', 'Raw API sources received', { 
+        sourceCount: apiSources.length,
+        sampleSource: apiSources[0] ? {
+          id: apiSources[0].id,
+          name: apiSources[0].attributes.name,
+          table_name: apiSources[0].attributes.table_name,
+          team_id: apiSources[0].attributes.team_id,
+          platform: apiSources[0].attributes.platform
+        } : null
+      });
+      
       const sources: Source[] = apiSources.map(apiSource => this.transformApiSource(apiSource));
+      
+      logToFile('DEBUG', 'Transformed sources', { 
+        sources: sources.map(s => ({
+          id: s.id,
+          name: s.name,
+          table_name: (s as any).table_name,
+          team_id: (s as any).team_id
+        }))
+      });
       
       this.sourcesCache = { data: sources, timestamp: Date.now() };
       console.error(`Successfully fetched ${sources.length} sources from Betterstack API`);
       return sources;
     } catch (error) {
+      logToFile('ERROR', 'Failed to fetch sources from API', { 
+        error: error instanceof Error ? error.message : error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       console.error('Unable to fetch sources from API:', error);
       return [];
     }
@@ -257,6 +327,18 @@ export class BetterstackClient {
     sources: (Source & { table_name: string })[], 
     dataType: DataSourceType = 'recent'
   ): string {
+    logToFile('DEBUG', 'Building multi-source query', { 
+      baseQuery, 
+      sourceCount: sources.length, 
+      dataType,
+      sources: sources.map(s => ({
+        id: s.id,
+        name: s.name,
+        table_name: s.table_name,
+        team_id: (s as any).team_id
+      }))
+    });
+
     if (sources.length === 0) {
       throw new Error('No sources provided for query');
     }
@@ -271,21 +353,44 @@ export class BetterstackClient {
       if (dataType === 'historical') {
         const s3TableName = `t${teamId}_${tableName}_s3`;
         tableFunction = `s3Cluster(primary, ${s3TableName})`;
+        logToFile('DEBUG', 'Single source historical query', { 
+          source: source.name, 
+          teamId, 
+          tableName, 
+          s3TableName, 
+          tableFunction 
+        });
       } else if (dataType === 'metrics') {
         const metricsTableName = `t${teamId}_${tableName}_metrics`;
         tableFunction = `remote(${metricsTableName})`;
+        logToFile('DEBUG', 'Single source metrics query', { 
+          source: source.name, 
+          teamId, 
+          tableName, 
+          metricsTableName, 
+          tableFunction 
+        });
       } else {
         // Recent logs
         const logsTableName = `t${teamId}_${tableName}_logs`;
         tableFunction = `remote(${logsTableName})`;
+        logToFile('DEBUG', 'Single source recent logs query', { 
+          source: source.name, 
+          teamId, 
+          tableName, 
+          logsTableName, 
+          tableFunction 
+        });
       }
       
+      const finalQuery = baseQuery.replace(/FROM\s+(logs|metrics)\b/gi, `FROM ${tableFunction}`);
+      logToFile('INFO', 'Generated single-source query', { tableFunction, finalQuery });
       console.error(`Generated table function: ${tableFunction}`);
-      return baseQuery.replace(/FROM\s+(logs|metrics)\b/gi, `FROM ${tableFunction}`);
+      return finalQuery;
     }
 
     // Multi-source query using UNION ALL
-    const unionQueries = sources.map(source => {
+    const unionQueries = sources.map((source, index) => {
       const teamId = (source as any).team_id;
       const tableName = (source as any).table_name;
       
@@ -294,30 +399,65 @@ export class BetterstackClient {
       if (dataType === 'historical') {
         const s3TableName = `t${teamId}_${tableName}_s3`;
         tableFunction = `s3Cluster(primary, ${s3TableName})`;
+        logToFile('DEBUG', `Multi-source historical query ${index + 1}`, { 
+          source: source.name, 
+          teamId, 
+          tableName, 
+          s3TableName, 
+          tableFunction 
+        });
       } else if (dataType === 'metrics') {
         const metricsTableName = `t${teamId}_${tableName}_metrics`;
         tableFunction = `remote(${metricsTableName})`;
+        logToFile('DEBUG', `Multi-source metrics query ${index + 1}`, { 
+          source: source.name, 
+          teamId, 
+          tableName, 
+          metricsTableName, 
+          tableFunction 
+        });
       } else {
         // Recent logs
         const logsTableName = `t${teamId}_${tableName}_logs`;
         tableFunction = `remote(${logsTableName})`;
+        logToFile('DEBUG', `Multi-source recent logs query ${index + 1}`, { 
+          source: source.name, 
+          teamId, 
+          tableName, 
+          logsTableName, 
+          tableFunction 
+        });
       }
       
       const sourceQuery = baseQuery.replace(/FROM\s+(logs|metrics)\b/gi, `FROM ${tableFunction}`);
       
       // Add source identifier to SELECT clause
       if (sourceQuery.toLowerCase().includes('select')) {
-        return sourceQuery.replace(
+        const finalSourceQuery = sourceQuery.replace(
           /SELECT\s+/i, 
           `SELECT '${source.name}' as source, `
         );
+        logToFile('DEBUG', `Generated source query ${index + 1}`, { 
+          source: source.name, 
+          sourceQuery: finalSourceQuery 
+        });
+        return finalSourceQuery;
       }
       
+      logToFile('DEBUG', `Generated source query ${index + 1} (no SELECT found)`, { 
+        source: source.name, 
+        sourceQuery 
+      });
       return sourceQuery;
     });
 
+    const finalUnionQuery = unionQueries.join(' UNION ALL ');
+    logToFile('INFO', 'Generated multi-source UNION query', { 
+      sourceCount: unionQueries.length,
+      finalQuery: finalUnionQuery
+    });
     console.error(`Generated multi-source query with ${unionQueries.length} sources`);
-    return unionQueries.join(' UNION ALL ');
+    return finalUnionQuery;
   }
 
   async executeQuery(
@@ -395,8 +535,11 @@ export class BetterstackClient {
     try {
       logToFile('INFO', 'Making ClickHouse API request', { 
         query: finalQuery,
+        queryLength: finalQuery.length,
         endpoint: this.config.clickhouseQueryEndpoint,
-        username: this.config.clickhouseUsername
+        username: this.config.clickhouseUsername,
+        tableReferences: finalQuery.match(/remote\([^)]+\)/g) || [],
+        s3ClusterReferences: finalQuery.match(/s3Cluster\([^)]+\)/g) || []
       });
       
       const response = await BetterstackClient.rateLimiter(() => 
@@ -405,8 +548,10 @@ export class BetterstackClient {
 
       logToFile('INFO', 'ClickHouse API response received', {
         status: response.status,
+        statusText: response.statusText,
         dataLength: response.data?.data?.length || response.data?.length || 0,
         responseDataKeys: Object.keys(response.data || {}),
+        responseHeaders: response.headers,
         firstFewChars: JSON.stringify(response.data).substring(0, 200)
       });
 
@@ -420,18 +565,200 @@ export class BetterstackClient {
         }
       };
     } catch (error: any) {
-      logToFile('ERROR', 'ClickHouse query execution failed', {
+      const responseData = error?.response?.data;
+      const response = error?.response;
+      
+      // First, log the complete raw error structure to understand what we're working with
+      logToFile('DEBUG', 'Complete raw error structure analysis', {
+        hasError: !!error,
+        errorType: typeof error,
+        errorConstructor: error?.constructor?.name,
+        errorName: error?.name,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        isAxiosError: error?.isAxiosError,
+        // Check all possible locations for response data
+        hasResponse: !!error?.response,
+        responseType: typeof error?.response,
+        hasResponseData: !!error?.response?.data,
+        responseDataType: typeof error?.response?.data,
+        responseDataConstructor: error?.response?.data?.constructor?.name,
+        responseDataKeys: error?.response?.data && typeof error?.response?.data === 'object' 
+          ? Object.keys(error.response.data) 
+          : 'not an object',
+        responseDataStringified: error?.response?.data 
+          ? JSON.stringify(error.response.data, null, 2).substring(0, 1000)
+          : 'no response data',
+        // Also check if error itself contains the response data
+        errorKeys: error && typeof error === 'object' ? Object.keys(error) : 'not an object',
+        // Check for data property directly on error
+        hasErrorData: !!error?.data,
+        errorDataType: typeof error?.data,
+        errorDataStringified: error?.data 
+          ? JSON.stringify(error.data, null, 2).substring(0, 1000)
+          : 'no error data',
+        // Completely serialize the error to see everything
+        completeErrorSerialized: JSON.stringify(error, Object.getOwnPropertyNames(error), 2).substring(0, 2000)
+      });
+      
+      let detailedError = {
         error: error?.message || error?.toString(),
-        response: error?.response?.data,
-        status: error?.response?.status,
-        config: {
+        status: response?.status,
+        statusText: response?.statusText,
+        responseHeaders: response?.headers,
+        fullResponse: responseData,
+        clickhouseException: null as any,
+        responseDataType: typeof responseData,
+        responseDataLength: responseData ? (typeof responseData === 'string' ? responseData.length : JSON.stringify(responseData).length) : 0,
+        hasResponseData: !!responseData,
+        rawResponseData: responseData,
+        stack: error?.stack,
+        tableReferencesInQuery: finalQuery.match(/remote\([^)]+\)/g) || [],
+        possibleTableIssue: finalQuery.includes('remote(') && response?.status === 404,
+        queryThatFailed: finalQuery,
+        completedFullErrorLogging: false
+      };
+
+      // Comprehensive ClickHouse exception extraction - check all possible locations
+      try {
+        let extractedData = null;
+        let dataSource = '';
+        
+        // Priority 1: error.response.data (standard Axios error location)
+        if (error?.response?.data) {
+          extractedData = error.response.data;
+          dataSource = 'error.response.data';
+        }
+        // Priority 2: error.data (sometimes Axios puts data here)
+        else if (error?.data) {
+          extractedData = error.data;
+          dataSource = 'error.data';
+        }
+        // Priority 3: Look for any property that looks like response data
+        else if (error && typeof error === 'object') {
+          // Check for properties that might contain the ClickHouse response
+          const possibleDataProps = ['responseData', 'body', 'content', 'result'];
+          for (const prop of possibleDataProps) {
+            if (error[prop]) {
+              extractedData = error[prop];
+              dataSource = `error.${prop}`;
+              break;
+            }
+          }
+          
+          // If still no data, check if error has exception property directly
+          if (!extractedData && error.exception) {
+            extractedData = { exception: error.exception };
+            dataSource = 'error.exception';
+          }
+        }
+        
+        if (extractedData) {
+          // Case 1: Standard object response
+          if (typeof extractedData === 'object' && extractedData !== null) {
+            detailedError.clickhouseException = {
+              type: 'object_response',
+              dataSource: dataSource,
+              fullObject: extractedData,
+              // Look for common ClickHouse error fields
+              exception: extractedData.exception || null,
+              code: extractedData.code || null,
+              message: extractedData.message || null,
+              meta: extractedData.meta || null,
+              data: extractedData.data || null,
+              rows: extractedData.rows || null,
+              error: extractedData.error || null,
+              // Check for nested exception data
+              exceptionDetails: extractedData.exception ? {
+                name: extractedData.exception.name || null,
+                message: extractedData.exception.message || null,
+                stack: extractedData.exception.stack || null
+              } : null,
+              allKeys: Object.keys(extractedData)
+            };
+          }
+          // Case 2: String response (common for ClickHouse text errors)
+          else if (typeof extractedData === 'string') {
+            detailedError.clickhouseException = {
+              type: 'string_response',
+              dataSource: dataSource,
+              rawError: extractedData,
+              stringLength: extractedData.length,
+              // Try to parse if it looks like JSON
+              possibleJsonParse: (() => {
+                try {
+                  return JSON.parse(extractedData);
+                } catch {
+                  return null;
+                }
+              })()
+            };
+          }
+          // Case 3: Other data types
+          else {
+            detailedError.clickhouseException = {
+              type: 'other_response',
+              dataSource: dataSource,
+              dataType: typeof extractedData,
+              data: extractedData,
+              stringified: String(extractedData)
+            };
+          }
+        } else {
+          // No response data found anywhere
+          detailedError.clickhouseException = {
+            type: 'no_response_data_found',
+            reason: 'No response data found in any expected location',
+            searchedLocations: [
+              'error.response.data',
+              'error.data',
+              'error.responseData',
+              'error.body',
+              'error.content',
+              'error.result',
+              'error.exception'
+            ]
+          };
+        }
+        
+        detailedError.completedFullErrorLogging = true;
+      } catch (parseError) {
+        detailedError.clickhouseException = {
+          type: 'parsing_failed',
+          parseError: parseError instanceof Error ? parseError.message : String(parseError),
+          originalData: responseData
+        };
+      }
+
+      // Additional comprehensive error logging
+      logToFile('DEBUG', 'Comprehensive error analysis', {
+        axiosErrorDetails: {
+          isAxiosError: error?.isAxiosError,
+          errorName: error?.name,
+          errorMessage: error?.message,
+          errorCode: error?.code,
+          errorStack: error?.stack?.substring(0, 500) + '...'
+        },
+        responseDetails: {
+          hasResponse: !!error?.response,
+          status: error?.response?.status,
+          statusText: error?.response?.statusText,
+          headers: error?.response?.headers,
+          data: error?.response?.data,
+          dataType: typeof error?.response?.data,
+          dataString: error?.response?.data ? String(error?.response?.data).substring(0, 1000) : 'no data'
+        },
+        requestDetails: {
           method: error?.config?.method,
           url: error?.config?.url,
-          headers: error?.config?.headers,
-          data: error?.config?.data?.substring(0, 200)
-        },
-        stack: error?.stack
+          baseURL: error?.config?.baseURL,
+          timeout: error?.config?.timeout,
+          dataLength: error?.config?.data?.length || 0
+        }
       });
+
+      logToFile('ERROR', 'ClickHouse query execution failed - complete details', detailedError);
+
       console.error('ClickHouse query execution failed:', error);
       throw error;
     }
