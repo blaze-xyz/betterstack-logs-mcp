@@ -549,6 +549,7 @@ export class BetterstackClient {
       logToFile('INFO', 'ClickHouse API response received', {
         keys: Object.keys(response),
         data: response.data,
+        exception: response.exception,
         status: response.status,
         statusText: response.statusText,
         dataLength: response.data?.data?.length || response.data?.length || 0,
