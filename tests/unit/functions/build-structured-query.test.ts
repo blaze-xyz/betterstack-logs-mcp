@@ -89,7 +89,20 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE raw LIKE '%error%' ORDER BY dt DESC LIMIT 20")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%error%') ORDER BY dt DESC LIMIT 20")
+    })
+
+    it('should use case-insensitive ILIKE for raw_contains filter', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          raw_contains: 'Error'
+        },
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%Error%') ORDER BY dt DESC LIMIT 10")
     })
 
   })
@@ -299,7 +312,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE raw LIKE '%api%' AND getJSON(raw, 'level') = 'ERROR' AND dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 25")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%api%') AND getJSON(raw, 'level') = 'ERROR' AND dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 25")
     })
 
     it('should handle all filter types together', async () => {
@@ -320,7 +333,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE raw LIKE '%payment%' AND getJSON(raw, 'level') = 'INFO' AND dt >= now() - INTERVAL 2 DAY AND getJSON(raw, 'transaction.type') = 'credit_card' ORDER BY dt DESC LIMIT 100")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%payment%') AND getJSON(raw, 'level') = 'INFO' AND dt >= now() - INTERVAL 2 DAY AND getJSON(raw, 'transaction.type') = 'credit_card' ORDER BY dt DESC LIMIT 100")
     })
 
     it('should handle tight time window debugging with error filtering', async () => {
@@ -338,7 +351,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE raw LIKE '%database connection%' AND getJSON(raw, 'level') = 'ERROR' AND dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%database connection%') AND getJSON(raw, 'level') = 'ERROR' AND dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50")
     })
   })
 
@@ -423,7 +436,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toContain("raw LIKE '%user''s data with \"quotes\" and \nnewlines%'")
+      expect(query).toContain("ilike(raw, '%user''s data with \"quotes\" and \nnewlines%')")
     })
   })
 })

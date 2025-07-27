@@ -70,10 +70,10 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
   
   if (filters) {
     try {
-      // Raw log filtering (most common use case)
+      // Raw log filtering (most common use case) - case-insensitive
       if (filters.raw_contains) {
         const escaped = sanitizeSqlString(filters.raw_contains);
-        whereConditions.push(`raw LIKE '%${escaped}%'`);
+        whereConditions.push(`ilike(raw, '%${escaped}%')`);
       }
       
       // Log level filtering (using getJSON)
@@ -494,7 +494,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       // FILTERING - What to filter by
       filters: z.object({
         // RAW LOG FILTERING (most common use case)
-        raw_contains: z.string().optional().describe("Simple substring search in raw field"),
+        raw_contains: z.string().optional().describe("Case-insensitive substring search in raw field"),
         
         // LOG LEVEL FILTERING (shorthand for JSON level field)
         level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level (uses getJSON(raw, 'level'))"),
