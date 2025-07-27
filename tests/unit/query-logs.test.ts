@@ -4,6 +4,18 @@ import { createTestConfig } from '../helpers/test-config.js'
 import { http, HttpResponse } from 'msw'
 import { QueryOptions, QueryResult } from '../../src/types.js'
 
+// Import the actual structured query functions for direct testing
+import {
+  buildStructuredQuery,
+  validateQueryParams,
+  sanitizeSqlString,
+  validateJsonFieldFilter,
+  buildTimeRangeFilter,
+  parseRelativeTime,
+  parseTimeValue,
+  type StructuredQueryParams
+} from '../../src/tools/query-tools.js'
+
 // Import the structured query functions for direct testing
 // We need to access these internal functions for unit testing
 const buildStructuredQuery = async (params: any) => {

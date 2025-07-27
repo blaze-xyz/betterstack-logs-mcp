@@ -31,7 +31,8 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw, level FROM logs ORDER BY dt DESC LIMIT 2'
+        fields: ['dt', 'raw'],
+        limit: 2
       })
 
       expect(result).toHaveProperty('content')
@@ -54,9 +55,11 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs WHERE raw LIKE "%API%" LIMIT 1',
+        fields: ['dt', 'raw'],
+        filters: { raw_contains: 'API' },
         sources: ['1021716'], // Production API Server ID
-        data_type: 'recent'
+        data_type: 'recent',
+        limit: 1
       })
 
       expect(result).toHaveProperty('content')
@@ -79,7 +82,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs ORDER BY dt DESC',
+        fields: ['dt', 'raw'],
         source_group: 'Development Environment',
         data_type: 'recent'
       })
@@ -99,7 +102,9 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs WHERE raw LIKE "%nonexistent%" LIMIT 10'
+        fields: ['dt', 'raw'],
+        filters: { raw_contains: 'nonexistent' },
+        limit: 10
       })
 
       expect(result).toHaveProperty('content')
@@ -120,7 +125,8 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs WHERE dt >= "2024-01-01"',
+        fields: ['dt', 'raw'],
+        filters: { time_range: { start: '2024-01-01' } },
         data_type: 'historical'
       })
 
@@ -143,8 +149,9 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, metric_name, value FROM metrics ORDER BY dt DESC LIMIT 2',
-        data_type: 'metrics'
+        fields: ['dt', 'json'],
+        data_type: 'metrics',
+        limit: 2
       })
 
       expect(result).toHaveProperty('content')
@@ -168,7 +175,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT invalid syntax FROM logs'
+        fields: ['invalid_field']
       })
 
       expect(result).toHaveProperty('content')
@@ -185,7 +192,8 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs LIMIT 1'
+        fields: ['dt', 'raw'],
+        limit: 1
       })
 
       expect(result).toHaveProperty('content')
@@ -206,7 +214,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs ORDER BY dt DESC',
+        fields: ['dt', 'raw'],
         limit: 2
       })
 
@@ -237,7 +245,9 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw, json FROM logs WHERE json.action = "login" LIMIT 1'
+        fields: ['dt', 'raw', 'json'],
+        filters: { json_field: { path: 'action', value: 'login' } },
+        limit: 1
       })
 
       expect(result).toHaveProperty('content')
@@ -260,7 +270,8 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 15'
+        fields: ['dt', 'raw'],
+        limit: 15
       })
 
       expect(result).toHaveProperty('content')
@@ -284,9 +295,10 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw, source FROM logs ORDER BY dt DESC LIMIT 10',
+        fields: ['dt', 'raw'],
         sources: ['Production API Server', 'Frontend Application'],
-        data_type: 'recent'
+        data_type: 'recent',
+        limit: 10
       })
 
       expect(result).toHaveProperty('content')
@@ -306,7 +318,8 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        query: 'SELECT dt, raw FROM logs LIMIT 1'
+        fields: ['dt', 'raw'],
+        limit: 1
       })
 
       // Validate MCP response format

@@ -1061,6 +1061,7 @@ export class BetterstackClient {
             
             // Find similar field names as suggestions
             const similarFields = schema.availableFields.filter(available => {
+              if (!available || typeof available !== 'string') return false;
               return available.toLowerCase().includes(field.toLowerCase()) ||
                      field.toLowerCase().includes(available.toLowerCase()) ||
                      this.calculateSimilarity(field.toLowerCase(), available.toLowerCase()) > 0.6;

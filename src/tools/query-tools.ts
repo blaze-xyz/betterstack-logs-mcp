@@ -7,16 +7,14 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Types for structured query building
-interface StructuredQueryParams {
+export interface StructuredQueryParams {
   fields: string[];
   jsonFields?: {
     path: string;
     alias?: string;
   }[];
   filters?: {
-    raw_like?: string;
     raw_contains?: string;
-    raw_regex?: string;
     level?: string;
     time_range?: {
       start?: string;
@@ -28,8 +26,6 @@ interface StructuredQueryParams {
       value: string;
     };
   };
-  orderBy: string;
-  orderDirection: string;
   limit: number;
 }
 
@@ -47,8 +43,8 @@ const logToFile = (level: string, message: string, data?: any) => {
 /**
  * Builds a ClickHouse SQL query from structured parameters
  */
-async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
-  const { fields, jsonFields, filters, orderBy, orderDirection, limit } = params;
+export async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
+  const { fields, jsonFields, filters, limit } = params;
   
   // 1. Validate parameters
   validateQueryParams(params);
@@ -75,24 +71,9 @@ async function buildStructuredQuery(params: StructuredQueryParams): Promise<stri
   if (filters) {
     try {
       // Raw log filtering (most common use case)
-      if (filters.raw_like) {
-        whereConditions.push(`raw LIKE '${sanitizeSqlString(filters.raw_like)}'`);
-      }
-      
       if (filters.raw_contains) {
         const escaped = sanitizeSqlString(filters.raw_contains);
         whereConditions.push(`raw LIKE '%${escaped}%'`);
-      }
-      
-      if (filters.raw_regex) {
-        // Validate regex pattern
-        try {
-          new RegExp(filters.raw_regex);
-        } catch (e) {
-          throw new Error(`Invalid regex pattern: ${filters.raw_regex}`);
-        }
-        const escaped = sanitizeSqlString(filters.raw_regex);
-        whereConditions.push(`match(raw, '${escaped}')`);
       }
       
       // Log level filtering (using getJSON)
@@ -133,8 +114,8 @@ async function buildStructuredQuery(params: StructuredQueryParams): Promise<stri
     query += ' WHERE ' + whereConditions.join(' AND ');
   }
   
-  // 6. Add ORDER BY
-  query += ` ORDER BY ${orderBy} ${orderDirection}`;
+  // 6. Add ORDER BY (always most recent first)
+  query += ` ORDER BY dt DESC`;
   
   // 7. Add LIMIT
   query += ` LIMIT ${limit}`;
@@ -151,26 +132,14 @@ async function buildStructuredQuery(params: StructuredQueryParams): Promise<stri
 /**
  * Validates query parameters for security and correctness
  */
-function validateQueryParams(params: StructuredQueryParams): void {
-  const { fields, orderBy, orderDirection, limit } = params;
+export function validateQueryParams(params: StructuredQueryParams): void {
+  const { fields, limit } = params;
   
   // Validate fields
   const validFields = ['dt', 'raw', 'json'];
   const invalidFields = fields.filter(field => !validFields.includes(field));
   if (invalidFields.length > 0) {
     throw new Error(`Invalid fields: ${invalidFields.join(', ')}. Valid fields are: ${validFields.join(', ')}`);
-  }
-  
-  // Validate orderBy
-  const validOrderFields = ['dt'];
-  if (!validOrderFields.includes(orderBy)) {
-    throw new Error(`Invalid order_by field: ${orderBy}. Valid fields are: ${validOrderFields.join(', ')}`);
-  }
-  
-  // Validate orderDirection
-  const validDirections = ['ASC', 'DESC'];
-  if (!validDirections.includes(orderDirection)) {
-    throw new Error(`Invalid order_direction: ${orderDirection}. Valid directions are: ${validDirections.join(', ')}`);
   }
   
   // Validate limit
@@ -182,14 +151,14 @@ function validateQueryParams(params: StructuredQueryParams): void {
 /**
  * Sanitizes SQL strings to prevent injection attacks
  */
-function sanitizeSqlString(input: string): string {
+export function sanitizeSqlString(input: string): string {
   return input.replace(/'/g, "''");
 }
 
 /**
  * Validates JSON field filter parameters
  */
-function validateJsonFieldFilter(jsonField: { path: string; value: string }): void {
+export function validateJsonFieldFilter(jsonField: { path: string; value: string }): void {
   if (!jsonField.path || typeof jsonField.path !== 'string') {
     throw new Error('JSON field path is required and must be a string');
   }
@@ -207,7 +176,7 @@ function validateJsonFieldFilter(jsonField: { path: string; value: string }): vo
 /**
  * Converts time range parameters to ClickHouse WHERE conditions
  */
-function buildTimeRangeFilter(timeRange: { start?: string; end?: string; last?: string }): string | null {
+export function buildTimeRangeFilter(timeRange: { start?: string; end?: string; last?: string }): string | null {
   const conditions: string[] = [];
   
   // Handle relative time range (e.g., "last 1h")
@@ -246,7 +215,7 @@ function buildTimeRangeFilter(timeRange: { start?: string; end?: string; last?: 
 /**
  * Parses relative time expressions like '1h', '30m', '2d', '1 hour', etc.
  */
-function parseRelativeTime(timeStr: string): string | null {
+export function parseRelativeTime(timeStr: string): string | null {
   timeStr = timeStr.toLowerCase().trim();
   
   // Parse compact format: '1h', '30m', '2d'  
@@ -306,7 +275,7 @@ function parseRelativeTime(timeStr: string): string | null {
 /**
  * Parses individual time values for start/end times
  */
-function parseTimeValue(timeStr: string, type: 'start' | 'end'): string | null {
+export function parseTimeValue(timeStr: string, type: 'start' | 'end'): string | null {
   timeStr = timeStr.trim();
   
   // ISO date format: 2024-01-15 or 2024-01-15T10:30:00
@@ -442,9 +411,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       // FILTERING - What to filter by
       filters: z.object({
         // RAW LOG FILTERING (most common use case)
-        raw_like: z.string().optional().describe("SQL LIKE pattern matching on raw field (e.g., '%error%')"),
         raw_contains: z.string().optional().describe("Simple substring search in raw field"),
-        raw_regex: z.string().optional().describe("Regex pattern matching on raw field"),
         
         // LOG LEVEL FILTERING (shorthand for JSON level field)
         level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level (uses getJSON(raw, 'level'))"),
@@ -463,11 +430,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         }).optional().describe("Filter by JSON field values using getJSON(raw, 'path')")
       }).optional().describe("Filters to apply to log query"),
 
-      // SORTING - How to order results
-      order_by: z.enum(['dt']).default('dt').describe("Field to sort by"),
-      order_direction: z.enum(['ASC', 'DESC']).default('DESC').describe("Sort direction"),
-
-      // LIMITS - Result size control
+      // LIMITS - Result size control (always ordered by most recent first)
       limit: z.number().min(1).max(1000).default(10).describe("Maximum number of results to return"),
 
       // SOURCES - Same as current tool
@@ -475,10 +438,10 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       source_group: z.string().optional().describe("Source group name to query (optional)"),
       data_type: z.enum(['recent', 'historical', 'metrics']).optional().describe("Type of data to query (default: recent)")
     },
-    async ({ fields, json_fields, filters, order_by, order_direction, limit, sources, source_group, data_type }) => {
+    async ({ fields, json_fields, filters, limit, sources, source_group, data_type }) => {
       try {
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          fields, json_fields, filters, order_by, order_direction, limit, sources, source_group, data_type 
+          fields, json_fields, filters, limit, sources, source_group, data_type 
         });
         
         // Step 1: Resolve sources first
@@ -563,8 +526,6 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           fields,
           jsonFields: json_fields,
           filters,
-          orderBy: order_by,
-          orderDirection: order_direction,
           limit
         });
 
