@@ -82,7 +82,7 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
         if (!validLevels.includes(filters.level)) {
           throw new Error(`Invalid log level: ${filters.level}. Must be one of: ${validLevels.join(', ')}`);
         }
-        whereConditions.push(`getJSON(raw, 'level') = '${filters.level}'`);
+        whereConditions.push(`lower(getJSON(raw, 'level')) = lower('${filters.level}')`);
       }
       
       // Time range filtering
