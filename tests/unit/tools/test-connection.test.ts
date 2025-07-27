@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { BetterstackClient } from '../../src/betterstack-client.js'
-import { createTestConfig } from '../helpers/test-config.js'
+import { BetterstackClient } from '../../../src/betterstack-client.js'
+import { createTestConfig } from '../../helpers/test-config.js'
 import { http, HttpResponse } from 'msw'
 
 describe('Test Connection Tool', () => {

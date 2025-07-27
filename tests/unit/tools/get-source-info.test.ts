@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { BetterstackClient } from '../../src/betterstack-client.js'
-import { createTestConfig } from '../helpers/test-config.js'
+import { BetterstackClient } from '../../../src/betterstack-client.js'
+import { createTestConfig } from '../../helpers/test-config.js'
 
 describe('Get Source Info Tool', () => {
   let client: BetterstackClient

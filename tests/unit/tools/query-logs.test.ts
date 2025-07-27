@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { BetterstackClient } from '../../src/betterstack-client.js'
-import { createTestConfig } from '../helpers/test-config.js'
+import { BetterstackClient } from '../../../src/betterstack-client.js'
+import { createTestConfig } from '../../helpers/test-config.js'
 import { http, HttpResponse } from 'msw'
-import { QueryOptions, QueryResult } from '../../src/types.js'
+import { QueryOptions, QueryResult } from '../../../src/types.js'
 
 
 describe('Query Logs Tool', () => {

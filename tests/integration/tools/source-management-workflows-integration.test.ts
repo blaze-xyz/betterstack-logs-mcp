@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
-import { BetterstackClient } from '../../src/betterstack-client.js'
-import { McpTestHelper } from '../helpers/mcp-test-helper.js'
-import { createTestServer } from '../helpers/test-server-factory.js'
+import { BetterstackClient } from '../../../src/betterstack-client.js'
+import { McpTestHelper } from '../../helpers/mcp-test-helper.js'
+import { createTestServer } from '../../helpers/test-server-factory.js'
 
 describe('Source Management Workflows Integration Tests', () => {
   let server: McpServer

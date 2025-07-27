@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { BetterstackClient } from '../../src/betterstack-client.js'
-import { createTestConfig } from '../helpers/test-config.js'
-import { mockApiSourceGroups } from '../__mocks__/betterstack-responses.js'
+import { BetterstackClient } from '../../../src/betterstack-client.js'
+import { createTestConfig } from '../../helpers/test-config.js'
+import { mockApiSourceGroups } from '../../__mocks__/betterstack-responses.js'
 import { http, HttpResponse } from 'msw'
 
 describe('List Source Groups Tool', () => {
