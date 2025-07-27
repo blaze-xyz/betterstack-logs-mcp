@@ -7,13 +7,11 @@ import { http, HttpResponse } from 'msw'
 
 describe('Query Logs Integration Tests', () => {
   let server: McpServer
-  let client: BetterstackClient
   let mcpHelper: McpTestHelper
 
   beforeEach(() => {
     const testServer = createTestServer()
     server = testServer.server
-    client = testServer.client
     mcpHelper = new McpTestHelper(server)
   })
 
@@ -58,7 +56,6 @@ describe('Query Logs Integration Tests', () => {
         fields: ['dt', 'raw'],
         filters: { raw_contains: 'API' },
         sources: ['1021716'], // Production API Server ID
-        data_type: 'recent',
         limit: 1
       })
 
@@ -83,8 +80,7 @@ describe('Query Logs Integration Tests', () => {
 
       const result = await mcpHelper.callTool('query_logs', {
         fields: ['dt', 'raw'],
-        source_group: 'Development Environment',
-        data_type: 'recent'
+        source_group: 'Development Environment'
       })
 
       expect(result).toHaveProperty('content')
@@ -126,8 +122,7 @@ describe('Query Logs Integration Tests', () => {
 
       const result = await mcpHelper.callTool('query_logs', {
         fields: ['dt', 'raw'],
-        filters: { time_range: { start: '2024-01-01' } },
-        data_type: 'historical'
+        filters: { time_range: { start: '2024-01-01' } }
       })
 
       expect(result).toHaveProperty('content')
@@ -150,7 +145,6 @@ describe('Query Logs Integration Tests', () => {
 
       const result = await mcpHelper.callTool('query_logs', {
         fields: ['dt', 'json'],
-        data_type: 'metrics',
         limit: 2
       })
 
@@ -297,7 +291,6 @@ describe('Query Logs Integration Tests', () => {
       const result = await mcpHelper.callTool('query_logs', {
         fields: ['dt', 'raw'],
         sources: ['Production API Server', 'Frontend Application'],
-        data_type: 'recent',
         limit: 10
       })
 

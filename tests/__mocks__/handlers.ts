@@ -50,6 +50,19 @@ export const handlers = [
       return HttpResponse.json({ data: [{ "1": 1 }] })
     }
     
+    // Handle DESCRIBE queries for table schema validation (includes remote() function)
+    if (query.includes('DESCRIBE TABLE remote(') || query.includes('DESCRIBE remote(')) {
+      return HttpResponse.json({
+        data: [
+          { name: 'dt', type: 'DateTime', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
+          { name: 'raw', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
+          { name: 'level', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
+          { name: 'json', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
+          { name: 'source', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' }
+        ]
+      })
+    }
+    
     // Handle regular queries
     return HttpResponse.json(mockClickHouseResponse)
   }),

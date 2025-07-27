@@ -180,6 +180,84 @@ describe('buildStructuredQuery Function (Simplified Schema)', () => {
       const query = await buildStructuredQuery(params)
       expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15' AND dt <= '2024-01-16' ORDER BY dt DESC LIMIT 10")
     })
+
+    it('should handle tight time spans with precise timestamps', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-01-15T14:30:00',
+            end: '2024-01-15T14:32:00'
+          }
+        },
+        limit: 50
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50")
+    })
+
+    it('should handle 10-minute debugging windows', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-01-15T09:15:00',
+            end: '2024-01-15T09:25:00'
+          }
+        },
+        limit: 100
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T09:15:00' AND dt <= '2024-01-15T09:25:00' ORDER BY dt DESC LIMIT 100")
+    })
+
+    it('should handle second precision for very tight windows', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-01-15T14:30:15',
+            end: '2024-01-15T14:30:25'
+          }
+        },
+        limit: 20
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:15' AND dt <= '2024-01-15T14:30:25' ORDER BY dt DESC LIMIT 20")
+    })
+
+    it('should handle start-only filter for logs after specific time', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-01-15T14:30:00'
+          }
+        },
+        limit: 25
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:00' ORDER BY dt DESC LIMIT 25")
+    })
+
+    it('should handle end-only filter for logs before specific time', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            end: '2024-01-15T14:30:00'
+          }
+        },
+        limit: 25
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt <= '2024-01-15T14:30:00' ORDER BY dt DESC LIMIT 25")
+    })
   })
 
   describe('JSON Field Filtering', () => {
@@ -253,6 +331,24 @@ describe('buildStructuredQuery Function (Simplified Schema)', () => {
 
       const query = await buildStructuredQuery(params)
       expect(query).toBe("SELECT dt, raw FROM logs WHERE raw LIKE '%payment%' AND getJSON(raw, 'level') = 'INFO' AND dt >= now() - INTERVAL 2 DAY AND getJSON(raw, 'transaction.type') = 'credit_card' ORDER BY dt DESC LIMIT 100")
+    })
+
+    it('should handle tight time window debugging with error filtering', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          raw_contains: 'database connection',
+          level: 'ERROR',
+          time_range: {
+            start: '2024-01-15T14:30:00',
+            end: '2024-01-15T14:32:00'
+          }
+        },
+        limit: 50
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE raw LIKE '%database connection%' AND getJSON(raw, 'level') = 'ERROR' AND dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50")
     })
   })
 

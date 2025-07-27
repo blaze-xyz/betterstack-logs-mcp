@@ -293,6 +293,89 @@ export function parseTimeValue(timeStr: string, type: 'start' | 'end'): string |
   return null;
 }
 
+/**
+ * Automatically determines whether to use 'recent' or 'historical' data based on time filters
+ * Logic:
+ * - No time filter → 'recent' (default)
+ * - Time filter within last 24 hours → 'recent'
+ * - Time filter beyond 24 hours → 'historical'
+ */
+function determineDataType(filters?: StructuredQueryParams['filters']): DataSourceType {
+  if (!filters?.time_range) {
+    return 'recent'; // Default to recent logs
+  }
+
+  const timeRange = filters.time_range;
+  const now = new Date();
+  const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+  // Handle relative time ranges (e.g., "1h", "30m", "2d")
+  if (timeRange.last) {
+    const hours = parseRelativeTimeToHours(timeRange.last);
+    if (hours !== null && hours <= 24) {
+      return 'recent';
+    } else {
+      return 'historical';
+    }
+  }
+
+  // Handle absolute start time
+  if (timeRange.start) {
+    try {
+      const startDate = new Date(timeRange.start);
+      if (startDate < twentyFourHoursAgo) {
+        return 'historical';
+      } else {
+        return 'recent';
+      }
+    } catch (e) {
+      // If date parsing fails, default to recent
+      return 'recent';
+    }
+  }
+
+  // If only end time is specified, assume recent
+  return 'recent';
+}
+
+/**
+ * Helper function to parse relative time strings to hours
+ * Returns null if parsing fails
+ */
+function parseRelativeTimeToHours(timeStr: string): number | null {
+  timeStr = timeStr.toLowerCase().trim();
+  
+  // Parse compact format: '1h', '30m', '2d'  
+  const compactMatch = timeStr.match(/^(\d+)([hdm])$/);
+  if (compactMatch) {
+    const amount = parseInt(compactMatch[1]);
+    const unit = compactMatch[2];
+    
+    switch (unit) {
+      case 'h': return amount;
+      case 'd': return amount * 24;
+      case 'm': return amount / 60;
+      default: return null;
+    }
+  }
+  
+  // Parse natural language: '1 hour', '30 minutes', '2 days'
+  const naturalMatch = timeStr.match(/^(\d+)\s+(hour|minute|day)s?$/);
+  if (naturalMatch) {
+    const amount = parseInt(naturalMatch[1]);
+    const unit = naturalMatch[2];
+    
+    switch (unit) {
+      case 'hour': return amount;
+      case 'day': return amount * 24;
+      case 'minute': return amount / 60;
+      default: return null;
+    }
+  }
+  
+  return null;
+}
+
 export function registerQueryTools(server: McpServer, client: BetterstackClient) {
   
   // Debug tool to show table information and query generation
@@ -433,22 +516,24 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       // LIMITS - Result size control (always ordered by most recent first)
       limit: z.number().min(1).max(1000).default(10).describe("Maximum number of results to return"),
 
-      // SOURCES - Same as current tool
+      // SOURCES - What to query from
       sources: z.array(z.string()).optional().describe("Specific source IDs or names to query (optional)"),
-      source_group: z.string().optional().describe("Source group name to query (optional)"),
-      data_type: z.enum(['recent', 'historical', 'metrics']).optional().describe("Type of data to query (default: recent)")
+      source_group: z.string().optional().describe("Source group name to query (optional)")
     },
-    async ({ fields, json_fields, filters, limit, sources, source_group, data_type }) => {
+    async ({ fields, json_fields, filters, limit, sources, source_group }) => {
       try {
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          fields, json_fields, filters, limit, sources, source_group, data_type 
+          fields, json_fields, filters, limit, sources, source_group 
         });
         
-        // Step 1: Resolve sources first
+        // Step 1: Determine data type automatically based on time filters
+        const dataType = determineDataType(filters);
+        
+        // Step 2: Resolve sources first
         const options: QueryOptions = {
           sources,
           sourceGroup: source_group,
-          dataType: data_type as DataSourceType,
+          dataType,
           limit
         };
         
@@ -458,8 +543,8 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           sources: resolvedSources.map((s: any) => ({ id: s.id, name: s.name }))
         });
 
-        // Step 2: Validate requested fields against actual table schemas
-        const fieldValidation = await client.validateFields(fields, resolvedSources, data_type as DataSourceType);
+        // Step 3: Validate requested fields against actual table schemas
+        const fieldValidation = await client.validateFields(fields, resolvedSources, dataType);
         
         if (fieldValidation.invalidFields.length > 0) {
           const warningMessages = [
@@ -487,7 +572,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             warningMessages.push('**Available fields for your selected sources:**');
             
             // Show available fields for each source
-            const sourcesWithSchema = await client.getSourcesWithSchema(resolvedSources, data_type as DataSourceType);
+            const sourcesWithSchema = await client.getSourcesWithSchema(resolvedSources, dataType);
             for (const { source, schema } of sourcesWithSchema) {
               if (schema) {
                 warningMessages.push(`- **${source.name}**: ${schema.availableFields.join(', ')}`);
@@ -521,7 +606,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           logToFile('INFO', 'All requested fields are valid', { validFields: fieldValidation.validFields });
         }
         
-        // Step 3: Build the SQL query from structured parameters
+        // Step 4: Build the SQL query from structured parameters
         const query = await buildStructuredQuery({
           fields,
           jsonFields: json_fields,
