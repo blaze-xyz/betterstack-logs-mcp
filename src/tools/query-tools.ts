@@ -9,6 +9,10 @@ import { fileURLToPath } from 'url';
 // Types for structured query building
 interface StructuredQueryParams {
   fields: string[];
+  jsonFields?: {
+    path: string;
+    alias?: string;
+  }[];
   filters?: {
     raw_like?: string;
     raw_contains?: string;
@@ -44,13 +48,23 @@ const logToFile = (level: string, message: string, data?: any) => {
  * Builds a ClickHouse SQL query from structured parameters
  */
 async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
-  const { fields, filters, orderBy, orderDirection, limit } = params;
+  const { fields, jsonFields, filters, orderBy, orderDirection, limit } = params;
   
   // 1. Validate parameters
   validateQueryParams(params);
   
-  // 2. Build SELECT clause
-  const selectClause = `SELECT ${fields.join(', ')}`;
+  // 2. Build SELECT clause with JSON field extraction
+  const selectItems = [...fields];
+  
+  // Add getJSON() calls for extracted JSON fields
+  if (jsonFields && jsonFields.length > 0) {
+    for (const jsonField of jsonFields) {
+      const alias = jsonField.alias || jsonField.path.replace(/\./g, '_');
+      selectItems.push(`getJSON(raw, '${sanitizeSqlString(jsonField.path)}') as ${alias}`);
+    }
+  }
+  
+  const selectClause = `SELECT ${selectItems.join(', ')}`;
   
   // 3. Build FROM clause (will be replaced by buildMultiSourceQuery later)
   const fromClause = 'FROM logs';
@@ -81,13 +95,13 @@ async function buildStructuredQuery(params: StructuredQueryParams): Promise<stri
         whereConditions.push(`match(raw, '${escaped}')`);
       }
       
-      // Log level filtering
+      // Log level filtering (using getJSON)
       if (filters.level) {
         const validLevels = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'];
         if (!validLevels.includes(filters.level)) {
           throw new Error(`Invalid log level: ${filters.level}. Must be one of: ${validLevels.join(', ')}`);
         }
-        whereConditions.push(`level = '${filters.level}'`);
+        whereConditions.push(`getJSON(raw, 'level') = '${filters.level}'`);
       }
       
       // Time range filtering
@@ -100,12 +114,12 @@ async function buildStructuredQuery(params: StructuredQueryParams): Promise<stri
         }
       }
       
-      // JSON field filtering
+      // JSON field filtering (using getJSON)
       if (filters.json_field) {
         validateJsonFieldFilter(filters.json_field);
         const jsonPath = sanitizeSqlString(filters.json_field.path);
         const jsonValue = sanitizeSqlString(filters.json_field.value);
-        whereConditions.push(`JSONExtractString(json, '${jsonPath}') = '${jsonValue}'`);
+        whereConditions.push(`getJSON(raw, '${jsonPath}') = '${jsonValue}'`);
       }
     } catch (error) {
       throw new Error(`Filter validation failed: ${error instanceof Error ? error.message : error}`);
@@ -141,14 +155,14 @@ function validateQueryParams(params: StructuredQueryParams): void {
   const { fields, orderBy, orderDirection, limit } = params;
   
   // Validate fields
-  const validFields = ['dt', 'raw', 'level', 'json', 'source'];
+  const validFields = ['dt', 'raw', 'json'];
   const invalidFields = fields.filter(field => !validFields.includes(field));
   if (invalidFields.length > 0) {
     throw new Error(`Invalid fields: ${invalidFields.join(', ')}. Valid fields are: ${validFields.join(', ')}`);
   }
   
   // Validate orderBy
-  const validOrderFields = ['dt', 'level'];
+  const validOrderFields = ['dt'];
   if (!validOrderFields.includes(orderBy)) {
     throw new Error(`Invalid order_by field: ${orderBy}. Valid fields are: ${validOrderFields.join(', ')}`);
   }
@@ -330,30 +344,67 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         // Get the sources that would be used
         const resolvedSources = await (client as any).resolveSources(options);
         
-        const debugInfo = resolvedSources.map((source: any) => {
-          return `**Source: ${source.name}**
-- ID: ${source.id}
-- Table Name: ${source.table_name || 'NOT SET'}
-- Team ID: ${source.team_id || 'NOT SET'}
-- Platform: ${source.platform}`;
-        });
+        // Get schema information for each source
+        const sourcesWithSchema = await client.getSourcesWithSchema(resolvedSources, 'recent');
+        
+        const debugInfo = [];
+        
+        for (const { source, schema, tableName } of sourcesWithSchema) {
+          const sourceInfo = [`**Source: ${source.name}**`];
+          sourceInfo.push(`- ID: ${source.id}`);
+          sourceInfo.push(`- Table Name: ${source.table_name || 'NOT SET'}`);
+          sourceInfo.push(`- Team ID: ${source.team_id || 'NOT SET'}`);
+          sourceInfo.push(`- Platform: ${source.platform}`);
+          sourceInfo.push(`- ClickHouse Table: ${tableName}`);
+          
+          if (schema) {
+            sourceInfo.push(`- **Available Columns (${schema.columns.length}):**`);
+            const columnList = schema.columns.map(col => `  • **${col.name}** (${col.type})`);
+            sourceInfo.push(...columnList);
+          } else {
+            sourceInfo.push('- **Schema:** ❌ Could not retrieve table schema');
+          }
+          
+          debugInfo.push(sourceInfo.join('\n'));
+        }
 
         // Test query generation
         const testQuery = "SELECT dt, raw FROM logs LIMIT 1";
         const builtQuery = await (client as any).buildMultiSourceQuery(testQuery, resolvedSources, 'recent');
 
+        // Show common fields across all sources
+        const allSchemas = sourcesWithSchema.filter(s => s.schema).map(s => s.schema!);
+        const commonFields = allSchemas.length > 0 ? 
+          allSchemas[0].availableFields.filter(field => 
+            allSchemas.every(schema => schema.availableFields.includes(field))
+          ) : [];
+
+        const resultText = [
+          '**Debug Information**',
+          '',
+          `**Resolved Sources (${resolvedSources.length}):**`,
+          ...debugInfo,
+          ''
+        ];
+
+        if (commonFields.length > 0) {
+          resultText.push('**Common Fields Across All Sources:**');
+          resultText.push(commonFields.join(', '));
+          resultText.push('');
+        } else {
+          resultText.push('**Warning:** No common fields found across all sources.');
+          resultText.push('');
+        }
+
+        resultText.push('**Test Query Generation:**');
+        resultText.push(`Original: ${testQuery}`);
+        resultText.push(`Generated: ${builtQuery}`);
+
         return {
           content: [
             {
               type: "text",
-              text: `**Debug Information**
-
-**Resolved Sources (${resolvedSources.length}):**
-${debugInfo.join('\n\n')}
-
-**Test Query Generation:**
-Original: ${testQuery}
-Generated: ${builtQuery}`
+              text: resultText.join('\n')
             }
           ]
         };
@@ -379,10 +430,14 @@ Generated: ${builtQuery}`
       fields: z.array(z.enum([
         'dt',     // Timestamp  
         'raw',    // Log message
-        'level',  // Log level (INFO, ERROR, etc.)
-        'json',   // Structured log data
-        'source'  // Source name
+        'json'    // Structured log data
       ])).default(['dt', 'raw']).describe("Fields to select from logs"),
+
+      // JSON FIELD EXTRACTION - Extract specific JSON fields as columns
+      json_fields: z.array(z.object({
+        path: z.string().describe("JSON path to extract (e.g., 'level', 'message', 'context.hostname')"),
+        alias: z.string().optional().describe("Optional alias for the extracted field (defaults to path)")
+      })).optional().describe("Extract specific JSON fields as columns using getJSON(raw, 'path')"),
 
       // FILTERING - What to filter by
       filters: z.object({
@@ -391,8 +446,8 @@ Generated: ${builtQuery}`
         raw_contains: z.string().optional().describe("Simple substring search in raw field"),
         raw_regex: z.string().optional().describe("Regex pattern matching on raw field"),
         
-        // LOG LEVEL FILTERING
-        level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level"),
+        // LOG LEVEL FILTERING (shorthand for JSON level field)
+        level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level (uses getJSON(raw, 'level'))"),
         
         // TIME RANGE FILTERING
         time_range: z.object({
@@ -401,15 +456,15 @@ Generated: ${builtQuery}`
           last: z.string().optional().describe("Relative time range (e.g., '1h', '30m', '2d')")
         }).optional().describe("Time range for filtering logs"),
         
-        // STRUCTURED DATA FILTERING
+        // STRUCTURED DATA FILTERING  
         json_field: z.object({
           path: z.string().describe("JSON field path (e.g., 'user.id', 'request.method')"),
           value: z.string().describe("Expected value for the JSON field")
-        }).optional().describe("Filter by JSON field values")
+        }).optional().describe("Filter by JSON field values using getJSON(raw, 'path')")
       }).optional().describe("Filters to apply to log query"),
 
       // SORTING - How to order results
-      order_by: z.enum(['dt', 'level']).default('dt').describe("Field to sort by"),
+      order_by: z.enum(['dt']).default('dt').describe("Field to sort by"),
       order_direction: z.enum(['ASC', 'DESC']).default('DESC').describe("Sort direction"),
 
       // LIMITS - Result size control
@@ -420,15 +475,93 @@ Generated: ${builtQuery}`
       source_group: z.string().optional().describe("Source group name to query (optional)"),
       data_type: z.enum(['recent', 'historical', 'metrics']).optional().describe("Type of data to query (default: recent)")
     },
-    async ({ fields, filters, order_by, order_direction, limit, sources, source_group, data_type }) => {
+    async ({ fields, json_fields, filters, order_by, order_direction, limit, sources, source_group, data_type }) => {
       try {
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          fields, filters, order_by, order_direction, limit, sources, source_group, data_type 
+          fields, json_fields, filters, order_by, order_direction, limit, sources, source_group, data_type 
         });
         
-        // Build the SQL query from structured parameters
+        // Step 1: Resolve sources first
+        const options: QueryOptions = {
+          sources,
+          sourceGroup: source_group,
+          dataType: data_type as DataSourceType,
+          limit
+        };
+        
+        const resolvedSources = await (client as any).resolveSources(options);
+        logToFile('INFO', 'Resolved sources for field validation', { 
+          sourceCount: resolvedSources.length,
+          sources: resolvedSources.map((s: any) => ({ id: s.id, name: s.name }))
+        });
+
+        // Step 2: Validate requested fields against actual table schemas
+        const fieldValidation = await client.validateFields(fields, resolvedSources, data_type as DataSourceType);
+        
+        if (fieldValidation.invalidFields.length > 0) {
+          const warningMessages = [
+            '⚠️  **Field Validation Warning**',
+            'Some requested fields are not available in the queried tables:',
+            ''
+          ];
+          
+          for (const invalidField of fieldValidation.invalidFields) {
+            warningMessages.push(`❌ **${invalidField}** - not found`);
+            if (fieldValidation.suggestions[invalidField]?.length > 0) {
+              warningMessages.push(`   💡 Did you mean: ${fieldValidation.suggestions[invalidField].join(', ')}?`);
+            }
+          }
+          
+          if (fieldValidation.validFields.length > 0) {
+            warningMessages.push('');
+            warningMessages.push(`✅ Available fields that will be used: ${fieldValidation.validFields.join(', ')}`);
+            warningMessages.push('');
+            warningMessages.push('**Continuing with available fields only...**');
+          } else {
+            warningMessages.push('');
+            warningMessages.push('❌ **No valid fields found. Query cannot proceed.**');
+            warningMessages.push('');
+            warningMessages.push('**Available fields for your selected sources:**');
+            
+            // Show available fields for each source
+            const sourcesWithSchema = await client.getSourcesWithSchema(resolvedSources, data_type as DataSourceType);
+            for (const { source, schema } of sourcesWithSchema) {
+              if (schema) {
+                warningMessages.push(`- **${source.name}**: ${schema.availableFields.join(', ')}`);
+              } else {
+                warningMessages.push(`- **${source.name}**: Schema unavailable`);
+              }
+            }
+            
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: warningMessages.join('\n')
+                }
+              ]
+            };
+          }
+          
+          // Use only valid fields for the query
+          fields = fieldValidation.validFields.filter((field): field is 'dt' | 'raw' | 'json' => 
+            ['dt', 'raw', 'json'].includes(field)
+          );
+          
+          logToFile('WARN', 'Field validation completed with warnings', {
+            originalFields: fields,
+            validFields: fieldValidation.validFields,
+            invalidFields: fieldValidation.invalidFields,
+            suggestions: fieldValidation.suggestions
+          });
+        } else {
+          logToFile('INFO', 'All requested fields are valid', { validFields: fieldValidation.validFields });
+        }
+        
+        // Step 3: Build the SQL query from structured parameters
         const query = await buildStructuredQuery({
           fields,
+          jsonFields: json_fields,
           filters,
           orderBy: order_by,
           orderDirection: order_direction,
@@ -436,14 +569,6 @@ Generated: ${builtQuery}`
         });
 
         logToFile('INFO', 'Generated SQL query', { query });
-        
-        const options: QueryOptions = {
-          sources,
-          sourceGroup: source_group,
-          dataType: data_type as DataSourceType,
-          limit
-        };
-
         logToFile('INFO', 'Query options prepared', options);
         const result = await client.executeQuery(query, options);
         logToFile('INFO', 'Query executed successfully', { resultCount: result.data?.length, meta: result.meta });

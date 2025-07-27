@@ -103,3 +103,20 @@ export interface QueryOptions {
     end: Date;
   };
 }
+
+export interface TableColumn {
+  name: string;
+  type: string;
+  default_type?: string;
+  default_expression?: string;
+  comment?: string;
+  codec_expression?: string;
+  ttl_expression?: string;
+}
+
+export interface TableSchema {
+  tableName: string;
+  columns: TableColumn[];
+  availableFields: string[];
+  cacheTimestamp: number;
+}

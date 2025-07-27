@@ -11,6 +11,8 @@ import {
   BetterstackApiError,
   BetterstackApiSource,
   BetterstackApiSourceGroup,
+  TableSchema,
+  TableColumn,
 } from "./types.js";
 import fs from "fs";
 import path from "path";
@@ -36,6 +38,7 @@ export class BetterstackClient {
   private sourcesCache: { data: Source[]; timestamp: number } | null = null;
   private sourceGroupsCache: { data: SourceGroup[]; timestamp: number } | null =
     null;
+  private schemaCache: Map<string, TableSchema> = new Map();
   private config: BetterstackConfig;
   private static rateLimiter = pLimit(RATE_LIMIT); // All instances share the same rate limiter
 
@@ -945,5 +948,189 @@ export class BetterstackClient {
     }
 
     return "recent";
+  }
+
+  // Schema introspection methods
+
+  private generateTableName(source: Source & { table_name: string; team_id: number }, dataType: DataSourceType): string {
+    const { team_id, table_name } = source;
+    const suffix = dataType === 'metrics' ? '_metrics' : dataType === 'historical' ? '_historical' : '_logs';
+    return `t${team_id}_${table_name}${suffix}`;
+  }
+
+  async getTableSchema(tableName: string): Promise<TableSchema | null> {
+    // Check cache first
+    const cached = this.schemaCache.get(tableName);
+    if (cached && this.isCacheValid(cached.cacheTimestamp)) {
+      logToFile('DEBUG', 'Using cached table schema', {
+        tableName,
+        cacheAge: Date.now() - cached.cacheTimestamp,
+        columnCount: cached.columns.length
+      });
+      return cached;
+    }
+
+    try {
+      logToFile('INFO', 'Fetching table schema from ClickHouse', { tableName });
+      
+      const describeQuery = `DESCRIBE TABLE remote(${tableName})`;
+      const response = await this.queryClient.post('/', describeQuery, {
+        headers: {
+          'Content-Type': 'text/plain',
+        },
+        params: {
+          default_format: 'JSON',
+        },
+      });
+
+      if (!response.data || !response.data.data) {
+        logToFile('WARN', 'No schema data returned for table', { tableName });
+        return null;
+      }
+
+      const columns: TableColumn[] = response.data.data.map((row: any) => ({
+        name: row.name || row[0],
+        type: row.type || row[1],
+        default_type: row.default_type || row[2],
+        default_expression: row.default_expression || row[3],
+        comment: row.comment || row[4],
+        codec_expression: row.codec_expression || row[5],
+        ttl_expression: row.ttl_expression || row[6],
+      }));
+
+      const availableFields = columns.map(col => col.name);
+      
+      const schema: TableSchema = {
+        tableName,
+        columns,
+        availableFields,
+        cacheTimestamp: Date.now(),
+      };
+
+      this.schemaCache.set(tableName, schema);
+      
+      logToFile('INFO', 'Table schema fetched and cached', {
+        tableName,
+        columnCount: columns.length,
+        availableFields
+      });
+
+      return schema;
+    } catch (error: any) {
+      logToFile('ERROR', 'Failed to fetch table schema', {
+        tableName,
+        error: error.message,
+        code: error.code || error.response?.status
+      });
+      
+      // If table doesn't exist, return null instead of throwing
+      if (error.response?.status === 404 || error.message?.includes('doesn\'t exist')) {
+        return null;
+      }
+      
+      throw error;
+    }
+  }
+
+  async validateFields(fields: string[], sources: (Source & { table_name: string; team_id: number })[], dataType: DataSourceType = 'recent'): Promise<{ validFields: string[]; invalidFields: string[]; suggestions: Record<string, string[]> }> {
+    const validFields: string[] = [];
+    const invalidFields: string[] = [];
+    const suggestions: Record<string, string[]> = {};
+
+    // Check schema for each source
+    for (const source of sources) {
+      const tableName = this.generateTableName(source, dataType);
+      const schema = await this.getTableSchema(tableName);
+      
+      if (!schema) {
+        logToFile('WARN', 'No schema available for source', { 
+          sourceName: source.name, 
+          tableName 
+        });
+        continue;
+      }
+
+      for (const field of fields) {
+        if (schema.availableFields.includes(field)) {
+          if (!validFields.includes(field)) {
+            validFields.push(field);
+          }
+        } else {
+          if (!invalidFields.includes(field)) {
+            invalidFields.push(field);
+            
+            // Find similar field names as suggestions
+            const similarFields = schema.availableFields.filter(available => {
+              return available.toLowerCase().includes(field.toLowerCase()) ||
+                     field.toLowerCase().includes(available.toLowerCase()) ||
+                     this.calculateSimilarity(field.toLowerCase(), available.toLowerCase()) > 0.6;
+            });
+            
+            if (similarFields.length > 0) {
+              suggestions[field] = similarFields;
+            }
+          }
+        }
+      }
+    }
+
+    logToFile('DEBUG', 'Field validation results', {
+      requestedFields: fields,
+      validFields,
+      invalidFields,
+      suggestions
+    });
+
+    return { validFields, invalidFields, suggestions };
+  }
+
+  private calculateSimilarity(str1: string, str2: string): number {
+    const longer = str1.length > str2.length ? str1 : str2;
+    const shorter = str1.length > str2.length ? str2 : str1;
+    
+    if (longer.length === 0) return 1.0;
+    
+    const editDistance = this.levenshteinDistance(longer, shorter);
+    return (longer.length - editDistance) / longer.length;
+  }
+
+  private levenshteinDistance(str1: string, str2: string): number {
+    const matrix: number[][] = [];
+    
+    for (let i = 0; i <= str2.length; i++) {
+      matrix[i] = [i];
+    }
+    
+    for (let j = 0; j <= str1.length; j++) {
+      matrix[0][j] = j;
+    }
+    
+    for (let i = 1; i <= str2.length; i++) {
+      for (let j = 1; j <= str1.length; j++) {
+        if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+          matrix[i][j] = matrix[i - 1][j - 1];
+        } else {
+          matrix[i][j] = Math.min(
+            matrix[i - 1][j - 1] + 1,
+            matrix[i][j - 1] + 1,
+            matrix[i - 1][j] + 1
+          );
+        }
+      }
+    }
+    
+    return matrix[str2.length][str1.length];
+  }
+
+  async getSourcesWithSchema(sources: (Source & { table_name: string; team_id: number })[], dataType: DataSourceType = 'recent'): Promise<Array<{ source: Source & { table_name: string; team_id: number }, schema: TableSchema | null, tableName: string }>> {
+    const results = [];
+    
+    for (const source of sources) {
+      const tableName = this.generateTableName(source, dataType);
+      const schema = await this.getTableSchema(tableName);
+      results.push({ source, schema, tableName });
+    }
+    
+    return results;
   }
 }
