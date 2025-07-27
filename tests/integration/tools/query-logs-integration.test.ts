@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js"
-import { BetterstackClient } from '../../../src/betterstack-client.js'
 import { createTestServer } from '../../helpers/test-server-factory.js'
 import { McpTestHelper } from '../../helpers/mcp-test-helper.js'
 import { http, HttpResponse } from 'msw'
@@ -299,6 +298,58 @@ describe('Query Logs Integration Tests', () => {
       expect(result.content[0].text).toContain('**Query Results**')
       expect(result.content[0].text).toContain('API log')
       expect(result.content[0].text).toContain('Frontend log')
+    })
+
+    it('should properly format JSON objects in query results via MCP protocol', async () => {
+      // Use MSW to override queries with test data that includes JSON objects
+      globalThis.__MSW_SERVER__.use(
+        http.post('https://clickhouse.betterstack.com/', async ({ request }) => {
+          const query = await request.text()
+          
+          if (query.includes('DESCRIBE TABLE remote(')) {
+            // Return proper schema that includes the fields we want to test
+            return HttpResponse.json({
+              data: [
+                ['dt', 'DateTime', '', '', '', '', ''],
+                ['raw', 'String', '', '', '', '', ''],
+                ['json', 'String', '', '', '', '', '']
+              ]
+            })
+          }
+          
+          // Return test data with complex JSON object
+          return HttpResponse.json({
+            data: [
+              { 
+                dt: '2024-01-01T10:00:00Z', 
+                raw: 'User action performed',
+                json: { 
+                  user_id: 123, 
+                  action: 'login', 
+                  timestamp: '2024-01-01T10:00:00Z',
+                  nested: { ip: '192.168.1.1', user_agent: 'Chrome' }
+                }
+              }
+            ]
+          })
+        })
+      )
+
+      const result = await mcpHelper.callTool('query_logs', {
+        fields: ['dt', 'raw', 'json'],
+        limit: 1
+      })
+
+      expect(result).toHaveProperty('content')
+      expect(result.content[0]).toHaveProperty('type', 'text')
+      
+      // Verify JSON object is properly stringified (not [object Object])
+      expect(result.content[0].text).toContain('json: {"user_id":123,"action":"login","timestamp":"2024-01-01T10:00:00Z","nested":{"ip":"192.168.1.1","user_agent":"Chrome"}}')
+      expect(result.content[0].text).not.toContain('[object Object]')
+      
+      // Verify other fields are still formatted correctly
+      expect(result.content[0].text).toContain('dt: 2024-01-01T10:00:00Z')
+      expect(result.content[0].text).toContain('raw: User action performed')
     })
 
     it('should validate MCP response format compliance', async () => {

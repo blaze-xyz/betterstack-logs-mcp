@@ -635,7 +635,13 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           const displayRows = result.data.slice(0, 10);
           const formatted = displayRows.map((row, index) => {
             const rowData = typeof row === 'object' ? 
-              Object.entries(row).map(([key, value]) => `${key}: ${value}`).join(', ') :
+              Object.entries(row).map(([key, value]) => {
+                // Handle object values (like json field) by stringifying them
+                const formattedValue = (typeof value === 'object' && value !== null) 
+                  ? JSON.stringify(value)
+                  : String(value);
+                return `${key}: ${formattedValue}`;
+              }).join(', ') :
               String(row);
             return `${index + 1}. ${rowData}`;
           });

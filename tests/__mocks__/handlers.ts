@@ -2,8 +2,7 @@ import { http, HttpResponse } from 'msw'
 import { 
   mockApiSources, 
   mockApiSourceGroups, 
-  mockClickHouseResponse,
-  generateMockSource
+  mockClickHouseResponse
 } from './betterstack-responses.js'
 
 export const handlers = [
@@ -54,11 +53,11 @@ export const handlers = [
     if (query.includes('DESCRIBE TABLE remote(') || query.includes('DESCRIBE remote(')) {
       return HttpResponse.json({
         data: [
-          { name: 'dt', type: 'DateTime', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
-          { name: 'raw', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
-          { name: 'level', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
-          { name: 'json', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' },
-          { name: 'source', type: 'String', default_type: '', default_expression: '', comment: '', codec_expression: '', ttl_expression: '' }
+          ['dt', 'DateTime', '', '', '', '', ''],
+          ['raw', 'String', '', '', '', '', ''],
+          ['level', 'String', '', '', '', '', ''],
+          ['json', 'String', '', '', '', '', ''],
+          ['source', 'String', '', '', '', '', '']
         ]
       })
     }

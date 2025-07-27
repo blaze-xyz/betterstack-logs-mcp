@@ -7,42 +7,57 @@ export const mockApiSources: BetterstackApiSource[] = [
     id: "1021715",
     type: "source",
     attributes: {
+      team_id: 12345,
+      team_name: "Engineering Team",
       name: "Spark - staging | deprecated",
-      platform: "ubuntu",
-      logs_retention: 7,
-      created_at: "2024-01-01T10:00:00Z",
-      updated_at: "2024-01-15T10:00:00Z",
       source_group_id: 1,
       table_name: "spark_staging_logs",
-      team_id: 12345
+      platform: "ubuntu",
+      token: "test-token-123",
+      ingesting_host: "logs.betterstack.com",
+      ingesting_paused: false,
+      logs_retention: 7,
+      metrics_retention: 30,
+      created_at: "2024-01-01T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z"
     }
   },
   {
     id: "1021716",
     type: "source", 
     attributes: {
+      team_id: 12345,
+      team_name: "Engineering Team",
       name: "Production API Server",
-      platform: "linux",
-      logs_retention: 30,
-      created_at: "2024-01-01T10:00:00Z",
-      updated_at: "2024-01-15T10:00:00Z",
       source_group_id: 2,
       table_name: "production_api_logs",
-      team_id: 12345
+      platform: "linux",
+      token: "test-token-456",
+      ingesting_host: "logs.betterstack.com",
+      ingesting_paused: false,
+      logs_retention: 30,
+      metrics_retention: 90,
+      created_at: "2024-01-01T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z"
     }
   },
   {
     id: "1021717",
     type: "source",
     attributes: {
+      team_id: 12345,
+      team_name: "Engineering Team",
       name: "Frontend Application",
-      platform: "docker",
-      logs_retention: 14,
-      created_at: "2024-01-01T10:00:00Z",
-      updated_at: "2024-01-15T10:00:00Z",
       source_group_id: 1,
       table_name: "frontend_app_logs",
-      team_id: 12345
+      platform: "docker",
+      token: "test-token-789",
+      ingesting_host: "logs.betterstack.com",
+      ingesting_paused: false,
+      logs_retention: 14,
+      metrics_retention: 60,
+      created_at: "2024-01-01T10:00:00Z",
+      updated_at: "2024-01-15T10:00:00Z"
     }
   }
 ]
@@ -53,6 +68,7 @@ export const mockApiSourceGroups: BetterstackApiSourceGroup[] = [
     id: "1",
     type: "source_group",
     attributes: {
+      id: 1,
       name: "Development Environment",
       created_at: "2024-01-01T10:00:00Z",
       updated_at: "2024-01-15T10:00:00Z",
@@ -64,6 +80,7 @@ export const mockApiSourceGroups: BetterstackApiSourceGroup[] = [
     id: "2", 
     type: "source_group",
     attributes: {
+      id: 2,
       name: "Production Environment",
       created_at: "2024-01-01T10:00:00Z",
       updated_at: "2024-01-15T10:00:00Z",
@@ -73,14 +90,17 @@ export const mockApiSourceGroups: BetterstackApiSourceGroup[] = [
   }
 ]
 
-// Mock logs data
+// Mock logs data - matches ClickHouse schema (dt, raw, level, json, source)
 export const mockLogs = Array.from({ length: 50 }, (_, i) => ({
-  timestamp: new Date(Date.now() - i * 60000).toISOString(),
-  message: faker.lorem.sentence(),
-  severity: faker.helpers.arrayElement(['info', 'warn', 'error', 'debug']),
-  source: faker.helpers.arrayElement(['Production API Server', 'Frontend Application']),
-  host: faker.internet.domainName(),
-  level: faker.helpers.arrayElement(['INFO', 'WARN', 'ERROR', 'DEBUG'])
+  dt: new Date(Date.now() - i * 60000).toISOString(),
+  raw: faker.lorem.sentence(),
+  level: faker.helpers.arrayElement(['INFO', 'WARN', 'ERROR', 'DEBUG']),
+  json: {
+    host: faker.internet.domainName(),
+    severity: faker.helpers.arrayElement(['info', 'warn', 'error', 'debug']),
+    request_id: faker.string.uuid()
+  },
+  source: faker.helpers.arrayElement(['Production API Server', 'Frontend Application'])
 }))
 
 // Mock ClickHouse query response
@@ -99,14 +119,19 @@ export const generateMockSource = (overrides: Partial<BetterstackApiSource['attr
   id: faker.string.numeric(7),
   type: "source",
   attributes: {
+    team_id: 12345,
+    team_name: faker.company.name() + " Team",
     name: faker.company.name() + " Server",
-    platform: faker.helpers.arrayElement(['ubuntu', 'linux', 'docker', 'kubernetes']),
-    logs_retention: faker.helpers.arrayElement([7, 14, 30, 90]),
-    created_at: faker.date.past().toISOString(),
-    updated_at: faker.date.recent().toISOString(),
     source_group_id: faker.number.int({ min: 1, max: 5 }),
     table_name: faker.string.alphanumeric(10) + "_logs",
-    team_id: 12345,
+    platform: faker.helpers.arrayElement(['ubuntu', 'linux', 'docker', 'kubernetes']),
+    token: faker.string.alphanumeric(20),
+    ingesting_host: "logs.betterstack.com",
+    ingesting_paused: false,
+    logs_retention: faker.helpers.arrayElement([7, 14, 30, 90]),
+    metrics_retention: faker.helpers.arrayElement([30, 60, 90, 180]),
+    created_at: faker.date.past().toISOString(),
+    updated_at: faker.date.recent().toISOString(),
     ...overrides
   }
 })
@@ -115,6 +140,7 @@ export const generateMockSourceGroup = (overrides: Partial<BetterstackApiSourceG
   id: faker.string.numeric(1),
   type: "source_group",
   attributes: {
+    id: faker.number.int({ min: 1, max: 100 }),
     name: faker.helpers.arrayElement(['Development', 'Staging', 'Production']) + " Environment",
     created_at: faker.date.past().toISOString(),
     updated_at: faker.date.recent().toISOString(),
