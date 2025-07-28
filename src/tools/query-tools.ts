@@ -284,10 +284,18 @@ export function parseRelativeTime(timeStr: string): string | null {
 export function parseTimeValue(timeStr: string, type: 'start' | 'end'): string | null {
   timeStr = timeStr.trim();
   
-  // ISO date format: 2024-01-15 or 2024-01-15T10:30:00
-  if (timeStr.match(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2})?$/)) {
+  // ISO date format: 2024-01-15, 2024-01-15T10:30:00, 2024-01-15T10:30:00Z, 2024-01-15T10:00:00+00:00
+  if (timeStr.match(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})?)?$/)) {
     const operator = type === 'start' ? '>=' : '<=';
-    return `dt ${operator} '${timeStr}'`;
+    
+    // Check if the timestamp contains timezone information (Z or offset)
+    if (timeStr.includes('Z') || timeStr.match(/[+-]\d{2}:\d{2}$/)) {
+      // Use parseDateTime64BestEffort for timezone-aware timestamps
+      return `dt ${operator} parseDateTime64BestEffort('${timeStr}')`;
+    } else {
+      // Use direct string comparison for simple timestamps
+      return `dt ${operator} '${timeStr}'`;
+    }
   }
   
   // Relative time for start only: '1 hour ago'

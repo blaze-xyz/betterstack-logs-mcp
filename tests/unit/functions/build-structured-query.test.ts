@@ -502,4 +502,70 @@ describe('buildStructuredQuery Function', () => {
       expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10')
     })
   })
+
+  describe('ISO Date Format Support', () => {
+    it('should accept ISO dates with Z timezone suffix', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-07-28T10:00:00Z',
+            end: '2024-07-28T12:00:00Z'
+          }
+        },
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= parseDateTime64BestEffort('2024-07-28T10:00:00Z') AND dt <= parseDateTime64BestEffort('2024-07-28T12:00:00Z') ORDER BY dt DESC LIMIT 10")
+    })
+
+    it('should accept ISO dates with timezone offset', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-07-28T10:00:00+00:00',
+            end: '2024-07-28T12:00:00-05:00'
+          }
+        },
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= parseDateTime64BestEffort('2024-07-28T10:00:00+00:00') AND dt <= parseDateTime64BestEffort('2024-07-28T12:00:00-05:00') ORDER BY dt DESC LIMIT 10")
+    })
+
+    it('should still accept ISO dates without timezone', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-07-28T10:00:00',
+            end: '2024-07-28T12:00:00'
+          }
+        },
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-07-28T10:00:00' AND dt <= '2024-07-28T12:00:00' ORDER BY dt DESC LIMIT 10")
+    })
+
+    it('should still accept date-only format', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        filters: {
+          time_range: {
+            start: '2024-07-28',
+            end: '2024-07-29'
+          }
+        },
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-07-28' AND dt <= '2024-07-29' ORDER BY dt DESC LIMIT 10")
+    })
+  })
 })
