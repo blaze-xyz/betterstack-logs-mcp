@@ -3,9 +3,8 @@ import { buildStructuredQuery, type StructuredQueryParams } from '../../../src/t
 
 describe('buildStructuredQuery Function', () => {
   describe('Basic Query Generation', () => {
-    it('should generate basic query with default parameters', async () => {
+    it('should generate basic query with default dt,raw fields', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10
       }
 
@@ -13,31 +12,19 @@ describe('buildStructuredQuery Function', () => {
       expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
     })
 
-    it('should handle multiple fields in SELECT clause', async () => {
+    it('should always use dt,raw fields regardless of other parameters', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw', 'json'],
         limit: 5
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw, json FROM logs ORDER BY dt DESC LIMIT 5 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
-    })
-
-    it('should handle single field selection', async () => {
-      const params: StructuredQueryParams = {
-        fields: ['raw'],
-        limit: 1
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT raw FROM logs ORDER BY dt DESC LIMIT 1 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 5 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
     })
   })
 
   describe('JSON Fields Extraction', () => {
     it('should generate getJSON calls for json fields', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         jsonFields: [
           { path: 'level' },
           { path: 'message', alias: 'msg' }
@@ -51,7 +38,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should use default alias when not provided', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt'],
         jsonFields: [
           { path: 'user.id' },
           { path: 'request.method' }
@@ -60,12 +46,11 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle complex nested JSON paths', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt'],
         jsonFields: [
           { path: 'context.user.session.id', alias: 'session_id' },
           { path: 'metadata.client.version' }
@@ -74,14 +59,13 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, getJSON(raw, 'context.user.session.id') as session_id, getJSON(raw, 'metadata.client.version') as metadata_client_version FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'context.user.session.id') as session_id, getJSON(raw, 'metadata.client.version') as metadata_client_version FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
   })
 
   describe('Raw Log Filtering', () => {
     it('should generate raw_contains filter', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           raw_contains: 'error'
         },
@@ -94,7 +78,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should use case-insensitive ILIKE for raw_contains filter', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           raw_contains: 'Error'
         },
@@ -110,7 +93,6 @@ describe('buildStructuredQuery Function', () => {
   describe('Level Filtering (JSON-based)', () => {
     it('should generate level filter using getJSON', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           level: 'ERROR'
         },
@@ -126,7 +108,6 @@ describe('buildStructuredQuery Function', () => {
       
       for (const level of levels) {
         const params: StructuredQueryParams = {
-          fields: ['dt', 'raw'],
           filters: { level: level as any },
           limit: 10
         }
@@ -140,7 +121,6 @@ describe('buildStructuredQuery Function', () => {
   describe('Time Range Filtering', () => {
     it('should generate relative time filter (compact format)', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             last: '1h'
@@ -155,7 +135,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should generate relative time filter (natural language)', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             last: '30 minutes'
@@ -170,7 +149,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should generate absolute time range filters', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-01-15',
@@ -186,7 +164,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle tight time spans with precise timestamps', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-01-15T14:30:00',
@@ -202,7 +179,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle 10-minute debugging windows', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-01-15T09:15:00',
@@ -218,7 +194,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle second precision for very tight windows', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-01-15T14:30:15',
@@ -234,7 +209,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle start-only filter for logs after specific time', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-01-15T14:30:00'
@@ -249,7 +223,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle end-only filter for logs before specific time', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             end: '2024-01-15T14:30:00'
@@ -266,7 +239,6 @@ describe('buildStructuredQuery Function', () => {
   describe('JSON Field Filtering', () => {
     it('should generate JSON field filter using getJSON', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           json_field: {
             path: 'user.id',
@@ -282,7 +254,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle complex JSON field paths', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           json_field: {
             path: 'metadata.request.headers.user_agent',
@@ -300,7 +271,6 @@ describe('buildStructuredQuery Function', () => {
   describe('Multiple Filters', () => {
     it('should combine multiple filters with AND', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           raw_contains: 'api',
           level: 'ERROR',
@@ -317,7 +287,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle all filter types together', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           raw_contains: 'payment',
           level: 'INFO',
@@ -338,7 +307,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle tight time window debugging with error filtering', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           raw_contains: 'database connection',
           level: 'ERROR',
@@ -358,7 +326,6 @@ describe('buildStructuredQuery Function', () => {
   describe('Complex Scenarios', () => {
     it('should combine JSON fields extraction with filtering', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         jsonFields: [
           { path: 'user.id', alias: 'user_id' },
           { path: 'request.method' },
@@ -383,7 +350,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should handle no filters (fields and ordering only)', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw', 'json'],
         jsonFields: [
           { path: 'level' }
         ],
@@ -391,14 +357,13 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, json, getJSON(raw, 'level') as level FROM logs ORDER BY dt DESC LIMIT 5 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'level') as level FROM logs ORDER BY dt DESC LIMIT 5 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
   })
 
   describe('Error Conditions and Edge Cases', () => {
     it('should throw error for invalid log level', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           level: 'INVALID_LEVEL' as any
         },
@@ -411,24 +376,21 @@ describe('buildStructuredQuery Function', () => {
     it('should handle edge case limits', async () => {
       // Test minimum limit
       const params1: StructuredQueryParams = {
-        fields: ['dt'],
         limit: 1
       }
       const query1 = await buildStructuredQuery(params1)
-      expect(query1).toBe('SELECT dt FROM logs ORDER BY dt DESC LIMIT 1 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      expect(query1).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 1 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
 
       // Test maximum limit
       const params2: StructuredQueryParams = {
-        fields: ['dt'],
         limit: 1000
       }
       const query2 = await buildStructuredQuery(params2)
-      expect(query2).toBe('SELECT dt FROM logs ORDER BY dt DESC LIMIT 1000 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      expect(query2).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 1000 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
     })
 
     it('should handle special characters in filter values', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           raw_contains: "user's data with \"quotes\" and \nnewlines"
         },
@@ -443,7 +405,6 @@ describe('buildStructuredQuery Function', () => {
   describe('Data Type Handling', () => {
     it('should add _row_type filter for historical data', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         dataType: 'historical',
         limit: 10
       }
@@ -454,7 +415,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should combine _row_type filter with other filters for historical data', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         dataType: 'historical',
         filters: {
           raw_contains: 'error',
@@ -469,7 +429,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should not add _row_type filter for recent data', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         dataType: 'recent',
         filters: {
           raw_contains: 'info'
@@ -483,7 +442,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should not add _row_type filter for metrics data', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         dataType: 'metrics',
         limit: 10
       }
@@ -494,7 +452,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should not add _row_type filter when dataType is undefined', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10
       }
 
@@ -506,7 +463,6 @@ describe('buildStructuredQuery Function', () => {
   describe('ISO Date Format Support', () => {
     it('should accept ISO dates with Z timezone suffix', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-07-28T10:00:00Z',
@@ -522,7 +478,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should accept ISO dates with timezone offset', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-07-28T10:00:00+00:00',
@@ -538,7 +493,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should still accept ISO dates without timezone', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-07-28T10:00:00',
@@ -554,7 +508,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should still accept date-only format', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         filters: {
           time_range: {
             start: '2024-07-28',
@@ -572,7 +525,6 @@ describe('buildStructuredQuery Function', () => {
   describe('Output Format Support', () => {
     it('should default to JSONEachRow format with SETTINGS', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10
       }
 
@@ -582,7 +534,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should explicitly use JSONEachRow format with SETTINGS', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10,
         format: 'JSONEachRow'
       }
@@ -593,7 +544,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should use JSON format without SETTINGS', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10,
         format: 'JSON'
       }
@@ -604,7 +554,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should use Pretty format without SETTINGS', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10,
         format: 'Pretty'
       }
@@ -615,7 +564,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should use CSV format without SETTINGS', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10,
         format: 'CSV'
       }
@@ -626,7 +574,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should use TSV format without SETTINGS', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         limit: 10,
         format: 'TSV'
       }
@@ -637,7 +584,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should combine format with filters and JSON extraction', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         jsonFields: [
           { path: 'level', alias: 'log_level' }
         ],
@@ -657,7 +603,6 @@ describe('buildStructuredQuery Function', () => {
 
     it('should work with historical data type and CSV format', async () => {
       const params: StructuredQueryParams = {
-        fields: ['dt', 'raw'],
         dataType: 'historical',
         filters: {
           level: 'ERROR'

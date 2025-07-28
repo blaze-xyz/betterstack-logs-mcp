@@ -11,7 +11,6 @@ export type ClickHouseFormat = 'JSON' | 'JSONEachRow' | 'Pretty' | 'CSV' | 'TSV'
 
 // Types for structured query building
 export interface StructuredQueryParams {
-  fields: string[];
   jsonFields?: {
     path: string;
     alias?: string;
@@ -47,15 +46,17 @@ const logToFile = (level: string, message: string, data?: any) => {
 
 /**
  * Builds a ClickHouse SQL query from structured parameters
+ * Always queries 'dt' (timestamp) and 'raw' (log message) fields
  */
 export async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
-  const { fields, jsonFields, filters, limit, dataType, format = 'JSONEachRow' } = params;
+  const { jsonFields, filters, limit, dataType, format = 'JSONEachRow' } = params;
   
   // 1. Validate parameters
   validateQueryParams(params);
   
   // 2. Build SELECT clause with JSON field extraction
-  const selectItems = [...fields];
+  // Always query dt (timestamp) and raw (log message) fields
+  const selectItems = ['dt', 'raw'];
   
   // Add getJSON() calls for extracted JSON fields
   if (jsonFields && jsonFields.length > 0) {
@@ -150,14 +151,7 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
  * Validates query parameters for security and correctness
  */
 export function validateQueryParams(params: StructuredQueryParams): void {
-  const { fields, limit } = params;
-  
-  // Validate fields
-  const validFields = ['dt', 'raw', 'json'];
-  const invalidFields = fields.filter(field => !validFields.includes(field));
-  if (invalidFields.length > 0) {
-    throw new Error(`Invalid fields: ${invalidFields.join(', ')}. Valid fields are: ${validFields.join(', ')}`);
-  }
+  const { limit } = params;
   
   // Validate limit
   if (limit < 1 || limit > 1000) {
@@ -503,13 +497,6 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
   server.tool(
     "query_logs",
     {
-      // FIELDS - What to select
-      fields: z.array(z.enum([
-        'dt',     // Timestamp  
-        'raw',    // Log message
-        'json'    // Structured log data
-      ])).default(['dt', 'raw']).describe("Fields to select from logs"),
-
       // JSON FIELD EXTRACTION - Extract specific JSON fields as columns
       json_fields: z.array(z.object({
         path: z.string().describe("JSON path to extract (e.g., 'level', 'message', 'context.hostname')"),
@@ -548,10 +535,10 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       // OUTPUT FORMAT - How to format the results
       format: z.enum(['JSON', 'JSONEachRow', 'Pretty', 'CSV', 'TSV']).default('JSONEachRow').describe("Output format for query results. JSONEachRow is best for programmatic access, Pretty for human reading, CSV/TSV for data export")
     },
-    async ({ fields, json_fields, filters, limit, sources, source_group, format }) => {
+    async ({ json_fields, filters, limit, sources, source_group, format }) => {
       try {
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          fields, json_fields, filters, limit, sources, source_group, format 
+          json_fields, filters, limit, sources, source_group, format 
         });
         
         // Step 1: Determine data type automatically based on time filters
@@ -566,77 +553,14 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         };
         
         const resolvedSources = await (client as any).resolveSources(options);
-        logToFile('INFO', 'Resolved sources for field validation', { 
+        logToFile('INFO', 'Resolved sources', { 
           sourceCount: resolvedSources.length,
           sources: resolvedSources.map((s: any) => ({ id: s.id, name: s.name }))
         });
 
-        // Step 3: Validate requested fields against actual table schemas
-        const fieldValidation = await client.validateFields(fields, resolvedSources, dataType);
-        
-        if (fieldValidation.invalidFields.length > 0) {
-          const warningMessages = [
-            '⚠️  **Field Validation Warning**',
-            'Some requested fields are not available in the queried tables:',
-            ''
-          ];
-          
-          for (const invalidField of fieldValidation.invalidFields) {
-            warningMessages.push(`❌ **${invalidField}** - not found`);
-            if (fieldValidation.suggestions[invalidField]?.length > 0) {
-              warningMessages.push(`   💡 Did you mean: ${fieldValidation.suggestions[invalidField].join(', ')}?`);
-            }
-          }
-          
-          if (fieldValidation.validFields.length > 0) {
-            warningMessages.push('');
-            warningMessages.push(`✅ Available fields that will be used: ${fieldValidation.validFields.join(', ')}`);
-            warningMessages.push('');
-            warningMessages.push('**Continuing with available fields only...**');
-          } else {
-            warningMessages.push('');
-            warningMessages.push('❌ **No valid fields found. Query cannot proceed.**');
-            warningMessages.push('');
-            warningMessages.push('**Available fields for your selected sources:**');
-            
-            // Show available fields for each source
-            const sourcesWithSchema = await client.getSourcesWithSchema(resolvedSources, dataType);
-            for (const { source, schema } of sourcesWithSchema) {
-              if (schema) {
-                warningMessages.push(`- **${source.name}**: ${schema.availableFields.join(', ')}`);
-              } else {
-                warningMessages.push(`- **${source.name}**: Schema unavailable`);
-              }
-            }
-            
-            return {
-              content: [
-                {
-                  type: "text",
-                  text: warningMessages.join('\n')
-                }
-              ]
-            };
-          }
-          
-          // Use only valid fields for the query
-          fields = fieldValidation.validFields.filter((field): field is 'dt' | 'raw' | 'json' => 
-            ['dt', 'raw', 'json'].includes(field)
-          );
-          
-          logToFile('WARN', 'Field validation completed with warnings', {
-            originalFields: fields,
-            validFields: fieldValidation.validFields,
-            invalidFields: fieldValidation.invalidFields,
-            suggestions: fieldValidation.suggestions
-          });
-        } else {
-          logToFile('INFO', 'All requested fields are valid', { validFields: fieldValidation.validFields });
-        }
-        
-        // Step 4: Build the SQL query from structured parameters
+        // Step 3: Build the SQL query from structured parameters
+        // Always query 'dt' (timestamp) and 'raw' (log message) fields
         const query = await buildStructuredQuery({
-          fields,
           jsonFields: json_fields,
           filters,
           limit,
