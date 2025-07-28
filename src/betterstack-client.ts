@@ -971,7 +971,7 @@ export class BetterstackClient {
     return `t${team_id}_${table_name}${suffix}`;
   }
 
-  async getTableSchema(tableName: string): Promise<TableSchema | null> {
+  async getTableSchema(tableName: string, dataType: DataSourceType = 'recent'): Promise<TableSchema | null> {
     // Check cache first
     const cached = this.schemaCache.get(tableName);
     if (cached && this.isCacheValid(cached.cacheTimestamp)) {
@@ -983,7 +983,11 @@ export class BetterstackClient {
       return cached;
     }
 
-    const describeQuery = `DESCRIBE TABLE remote(${tableName})`;
+    // Use correct table access pattern based on data type
+    const tableFunction = dataType === 'historical' 
+      ? `s3Cluster(primary, ${tableName})` 
+      : `remote(${tableName})`;
+    const describeQuery = `DESCRIBE TABLE ${tableFunction}`;
 
     try {
       logToFile('INFO', 'Fetching table schema from ClickHouse', { tableName });
@@ -1055,7 +1059,7 @@ export class BetterstackClient {
     // Check schema for each source
     for (const source of sources) {
       const tableName = this.generateTableName(source, dataType);
-      const schema = await this.getTableSchema(tableName);
+      const schema = await this.getTableSchema(tableName, dataType);
       
       if (!schema) {
         logToFile('WARN', 'No schema available for source', { 
@@ -1143,7 +1147,7 @@ export class BetterstackClient {
     
     for (const source of sources) {
       const tableName = this.generateTableName(source, dataType);
-      const schema = await this.getTableSchema(tableName);
+      const schema = await this.getTableSchema(tableName, dataType);
       results.push({ source, schema, tableName });
     }
     
