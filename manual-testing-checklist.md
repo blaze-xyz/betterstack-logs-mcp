@@ -8,7 +8,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 - [ ] **JSON Field Extraction Tests** (3 tests)
 - [ ] **Raw Content Filtering Tests** (2 tests)
 - [ ] **Log Level Filtering Tests** (3 tests)
-- [ ] **Time Range Filtering Tests** (4 tests)
+- [ ] **Time Range Filtering Tests** (5 tests)
 - [ ] **JSON Field Filtering Tests** (3 tests)
 - [ ] **Combined Filter Tests** (3 tests)
 - [ ] **Limit Testing** (2 tests)
@@ -165,7 +165,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ## 3. Raw Content Filtering Tests
 
-### [] Test 3.1: Simple substring search
+### [x] Test 3.1: Simple substring search
 
 ```json
 {
@@ -190,7 +190,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 3.2: Search for specific patterns
+### [x] Test 3.2: Search for specific patterns
 
 ```json
 {
@@ -219,7 +219,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ## 4. Log Level Filtering Tests
 
-### [ ] Test 4.1: Filter by ERROR level
+### [x] Test 4.1: Filter by ERROR level
 
 ```json
 {
@@ -244,7 +244,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 4.2: Filter by INFO level
+### [x] Test 4.2: Filter by INFO level
 
 ```json
 {
@@ -269,7 +269,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 4.3: Filter by WARN level
+### [x] Test 4.3: Filter by WARN level
 
 ```json
 {
@@ -298,7 +298,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ## 5. Time Range Filtering Tests
 
-### [ ] Test 5.1: Last hour
+### [x] Test 5.1: Last hour
 
 ```json
 {
@@ -325,7 +325,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 5.2: Last 30 minutes
+### [x] Test 5.2: Last 30 minutes
 
 ```json
 {
@@ -350,7 +350,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 **Expected**: Should return logs from last 30 minutes
 **Result**: ✅ / ❌
-**Notes**:
+**Notes**: It was hard to test with 30 minutes, but setting it to 4 confirmed that the logs truncate according to the time filter.
 
 ### [ ] Test 5.3: Specific time range with start and end
 
@@ -380,12 +380,40 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 5.4: Relative start time
+### [ ] Test 5.5: Start and end with ISO timestamps
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 15,
+  "method": "tools/call",
+  "params": {
+    "name": "query_logs",
+    "arguments": {
+      "fields": ["dt", "raw"],
+      "filters": {
+        "time_range": {
+          "start": "2024-07-28T10:00:00Z",
+          "end": "2024-07-28T12:00:00Z"
+        }
+      },
+      "sources": ["1386515"],
+      "limit": 10
+    }
+  }
+}
+```
+
+**Expected**: Should return logs between ISO timestamps 2024-07-28T10:00:00Z and 2024-07-28T12:00:00Z
+**Result**: ✅ / ❌
+**Notes**:
+
+### [x] Test 5.4: Relative start time
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 16,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -405,7 +433,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 **Expected**: Should return logs from 2 hours ago onwards
 **Result**: ✅ / ❌
-**Notes**:
+**Notes**: SQL query basically compiles down to the equivalent we'd have if we did "last 2 hours"
 
 ---
 
@@ -416,7 +444,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 16,
+  "id": 17,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -444,7 +472,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 17,
+  "id": 18,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -472,7 +500,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 18,
+  "id": 19,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -504,7 +532,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 19,
+  "id": 20,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -533,7 +561,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 20,
+  "id": 21,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -562,7 +590,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 21,
+  "id": 22,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -598,7 +626,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 22,
+  "id": 23,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -620,7 +648,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 23,
+  "id": 24,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -646,7 +674,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 24,
+  "id": 25,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -768,9 +796,9 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ### Overall Test Status:
 
-**Tests Completed**: ** / 26  
-**Tests Passed**: ** / 26  
-**Tests Failed**: \_\_ / 26
+**Tests Completed**: ** / 27  
+**Tests Passed**: ** / 27  
+**Tests Failed**: \_\_ / 27
 
 **Start Time**: **\*\***\_\_\_\_**\*\***  
 **End Time**: **\*\***\_\_\_\_**\*\***  

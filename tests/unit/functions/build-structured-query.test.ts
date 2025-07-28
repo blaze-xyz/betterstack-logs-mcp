@@ -439,4 +439,67 @@ describe('buildStructuredQuery Function', () => {
       expect(query).toContain("ilike(raw, '%user''s data with \"quotes\" and \nnewlines%')")
     })
   })
+
+  describe('Data Type Handling', () => {
+    it('should add _row_type filter for historical data', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        dataType: 'historical',
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe('SELECT dt, raw FROM logs WHERE _row_type = 1 ORDER BY dt DESC LIMIT 10')
+    })
+
+    it('should combine _row_type filter with other filters for historical data', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        dataType: 'historical',
+        filters: {
+          raw_contains: 'error',
+          level: 'ERROR'
+        },
+        limit: 20
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE _row_type = 1 AND ilike(raw, '%error%') AND lower(getJSON(raw, 'level')) = lower('ERROR') ORDER BY dt DESC LIMIT 20")
+    })
+
+    it('should not add _row_type filter for recent data', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        dataType: 'recent',
+        filters: {
+          raw_contains: 'info'
+        },
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%info%') ORDER BY dt DESC LIMIT 10")
+    })
+
+    it('should not add _row_type filter for metrics data', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        dataType: 'metrics',
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10')
+    })
+
+    it('should not add _row_type filter when dataType is undefined', async () => {
+      const params: StructuredQueryParams = {
+        fields: ['dt', 'raw'],
+        limit: 10
+      }
+
+      const query = await buildStructuredQuery(params)
+      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10')
+    })
+  })
 })

@@ -668,6 +668,19 @@ export class BetterstackClient {
       const responseData = error?.response?.data;
       const response = error?.response;
 
+      // Log the failed query for debugging
+      logToFile("ERROR", "ClickHouse query failed", {
+        query: finalQuery,
+        queryLength: finalQuery.length,
+        tableReferences: finalQuery.match(/remote\([^)]+\)/g) || [],
+        s3ClusterReferences: finalQuery.match(/s3Cluster\([^)]+\)/g) || [],
+        error: error?.message || error?.toString(),
+        status: response?.status,
+        statusText: response?.statusText,
+        endpoint: this.config.clickhouseQueryEndpoint,
+        username: this.config.clickhouseUsername
+      });
+
       // First, log the complete raw error structure to understand what we're working with
       logToFile("DEBUG", "Complete raw error structure analysis", {
         hasError: !!error,
@@ -954,7 +967,7 @@ export class BetterstackClient {
 
   private generateTableName(source: Source & { table_name: string; team_id: number }, dataType: DataSourceType): string {
     const { team_id, table_name } = source;
-    const suffix = dataType === 'metrics' ? '_metrics' : dataType === 'historical' ? '_historical' : '_logs';
+    const suffix = dataType === 'metrics' ? '_metrics' : dataType === 'historical' ? '_s3' : '_logs';
     return `t${team_id}_${table_name}${suffix}`;
   }
 
@@ -970,10 +983,11 @@ export class BetterstackClient {
       return cached;
     }
 
+    const describeQuery = `DESCRIBE TABLE remote(${tableName})`;
+
     try {
       logToFile('INFO', 'Fetching table schema from ClickHouse', { tableName });
       
-      const describeQuery = `DESCRIBE TABLE remote(${tableName})`;
       const response = await this.queryClient.post('/', describeQuery, {
         headers: {
           'Content-Type': 'text/plain',
@@ -1019,6 +1033,7 @@ export class BetterstackClient {
     } catch (error: any) {
       logToFile('ERROR', 'Failed to fetch table schema', {
         tableName,
+        query: describeQuery,
         error: error.message,
         code: error.code || error.response?.status
       });

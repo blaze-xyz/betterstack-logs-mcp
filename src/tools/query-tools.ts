@@ -27,6 +27,7 @@ export interface StructuredQueryParams {
     };
   };
   limit: number;
+  dataType?: 'recent' | 'historical' | 'metrics';
 }
 
 // Setup logging - use the directory where this script is located
@@ -44,7 +45,7 @@ const logToFile = (level: string, message: string, data?: any) => {
  * Builds a ClickHouse SQL query from structured parameters
  */
 export async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
-  const { fields, jsonFields, filters, limit } = params;
+  const { fields, jsonFields, filters, limit, dataType } = params;
   
   // 1. Validate parameters
   validateQueryParams(params);
@@ -67,6 +68,11 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
   
   // 4. Build WHERE clauses
   const whereConditions: string[] = [];
+  
+  // Add required filter for historical data
+  if (dataType === 'historical') {
+    whereConditions.push('_row_type = 1');
+  }
   
   if (filters) {
     try {
@@ -611,7 +617,8 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           fields,
           jsonFields: json_fields,
           filters,
-          limit
+          limit,
+          dataType
         });
 
         logToFile('INFO', 'Generated SQL query', { query });
