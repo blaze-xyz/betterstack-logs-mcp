@@ -13,6 +13,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 - [ ] **Combined Filter Tests** (3 tests)
 - [ ] **Limit Testing** (2 tests)
 - [ ] **Complex Real-World Scenarios** (3 tests)
+- [ ] **Output Format Testing** (5 tests)
 
 ---
 
@@ -380,7 +381,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 5.5: Start and end with ISO timestamps
+### [x] Test 5.5: Start and end with ISO timestamps
 
 ```json
 {
@@ -393,8 +394,8 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
       "fields": ["dt", "raw"],
       "filters": {
         "time_range": {
-          "start": "2024-07-28T10:00:00Z",
-          "end": "2024-07-28T12:00:00Z"
+          "start": "2025-07-28T10:00:00Z",
+          "end": "2025-07-28T12:00:00Z"
         }
       },
       "sources": ["1386515"],
@@ -772,6 +773,124 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ---
 
+## 10. Output Format Testing
+
+### [ ] Test 10.1: Default JSONEachRow format
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 27,
+  "method": "tools/call",
+  "params": {
+    "name": "query_logs",
+    "arguments": {
+      "fields": ["dt", "raw"],
+      "sources": ["1386515"],
+      "limit": 5
+    }
+  }
+}
+```
+
+**Expected**: Should return data in JSONEachRow format (array of objects)
+**Result**: ✅ / ❌
+**Notes**:
+
+### [ ] Test 10.2: Pretty format for human reading
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 28,
+  "method": "tools/call",
+  "params": {
+    "name": "query_logs",
+    "arguments": {
+      "fields": ["dt", "raw"],
+      "sources": ["1386515"],
+      "limit": 5,
+      "format": "Pretty"
+    }
+  }
+}
+```
+
+**Expected**: Should return human-readable table format
+**Result**: ✅ / ❌
+**Notes**:
+
+### [ ] Test 10.3: CSV format for data export
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 29,
+  "method": "tools/call",
+  "params": {
+    "name": "query_logs",
+    "arguments": {
+      "fields": ["dt", "raw"],
+      "sources": ["1386515"],
+      "limit": 5,
+      "format": "CSV"
+    }
+  }
+}
+```
+
+**Expected**: Should return comma-separated values
+**Result**: ✅ / ❌
+**Notes**:
+
+### [ ] Test 10.4: JSON format (single object)
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 30,
+  "method": "tools/call",
+  "params": {
+    "name": "query_logs",
+    "arguments": {
+      "fields": ["dt", "raw"],
+      "sources": ["1386515"],
+      "limit": 5,
+      "format": "JSON"
+    }
+  }
+}
+```
+
+**Expected**: Should return single JSON object with array of results
+**Result**: ✅ / ❌
+**Notes**:
+
+### [ ] Test 10.5: TSV format for spreadsheet import
+
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 31,
+  "method": "tools/call",
+  "params": {
+    "name": "query_logs",
+    "arguments": {
+      "fields": ["dt", "raw"],
+      "sources": ["1386515"],
+      "limit": 5,
+      "format": "TSV"
+    }
+  }
+}
+```
+
+**Expected**: Should return tab-separated values
+**Result**: ✅ / ❌
+**Notes**:
+
+---
+
 ## Testing Notes
 
 ### Important Things to Verify:
@@ -796,9 +915,9 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ### Overall Test Status:
 
-**Tests Completed**: ** / 27  
-**Tests Passed**: ** / 27  
-**Tests Failed**: \_\_ / 27
+**Tests Completed**: ** / 32  
+**Tests Passed**: ** / 32  
+**Tests Failed**: \_\_ / 32
 
 **Start Time**: **\*\***\_\_\_\_**\*\***  
 **End Time**: **\*\***\_\_\_\_**\*\***  

@@ -6,6 +6,9 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
+// ClickHouse output format types
+export type ClickHouseFormat = 'JSON' | 'JSONEachRow' | 'Pretty' | 'CSV' | 'TSV';
+
 // Types for structured query building
 export interface StructuredQueryParams {
   fields: string[];
@@ -28,6 +31,7 @@ export interface StructuredQueryParams {
   };
   limit: number;
   dataType?: 'recent' | 'historical' | 'metrics';
+  format?: ClickHouseFormat;
 }
 
 // Setup logging - use the directory where this script is located
@@ -45,7 +49,7 @@ const logToFile = (level: string, message: string, data?: any) => {
  * Builds a ClickHouse SQL query from structured parameters
  */
 export async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
-  const { fields, jsonFields, filters, limit, dataType } = params;
+  const { fields, jsonFields, filters, limit, dataType, format = 'JSONEachRow' } = params;
   
   // 1. Validate parameters
   validateQueryParams(params);
@@ -125,6 +129,13 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
   
   // 7. Add LIMIT
   query += ` LIMIT ${limit}`;
+  
+  // 8. Add FORMAT clause and SETTINGS for JSONEachRow
+  if (format === 'JSONEachRow') {
+    query += ` SETTINGS output_format_json_array_of_rows = 1 FORMAT ${format}`;
+  } else {
+    query += ` FORMAT ${format}`;
+  }
   
   logToFile('DEBUG', 'Generated structured query', { 
     params, 
@@ -532,12 +543,15 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
 
       // SOURCES - What to query from
       sources: z.array(z.string()).optional().describe("Specific source IDs or names to query (optional)"),
-      source_group: z.string().optional().describe("Source group name to query (optional)")
+      source_group: z.string().optional().describe("Source group name to query (optional)"),
+      
+      // OUTPUT FORMAT - How to format the results
+      format: z.enum(['JSON', 'JSONEachRow', 'Pretty', 'CSV', 'TSV']).default('JSONEachRow').describe("Output format for query results. JSONEachRow is best for programmatic access, Pretty for human reading, CSV/TSV for data export")
     },
-    async ({ fields, json_fields, filters, limit, sources, source_group }) => {
+    async ({ fields, json_fields, filters, limit, sources, source_group, format }) => {
       try {
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          fields, json_fields, filters, limit, sources, source_group 
+          fields, json_fields, filters, limit, sources, source_group, format 
         });
         
         // Step 1: Determine data type automatically based on time filters
@@ -626,7 +640,8 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           jsonFields: json_fields,
           filters,
           limit,
-          dataType
+          dataType,
+          format
         });
 
         logToFile('INFO', 'Generated SQL query', { query });
