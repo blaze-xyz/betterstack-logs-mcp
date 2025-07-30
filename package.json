@@ -6,19 +6,19 @@
   "author": "Blaze",
   "type": "module",
   "bin": {
-    "betterstack-logs-mcp": "dist/index.js"
+    "betterstack-logs-mcp": "dist/src/index.js"
   },
   "files": [
     "dist"
   ],
   "scripts": {
-    "build": "tsc && shx chmod +x dist/*.js",
+    "build": "tsc && shx chmod +x dist/src/index.js dist/scripts/*.js",
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "dev": "tsc --watch",
-    "inspect": "node --inspect dist/index.js",
-    "debug": "npm run build && node --inspect dist/index.js --transport http --port 3000",
-    "run": "npm run build && node dist/index.js --transport http --port 3000",
+    "inspect": "node --inspect dist/src/index.js",
+    "debug": "npm run build && node --inspect dist/src/index.js --transport http --port 3000",
+    "run": "npm run build && node dist/src/index.js --transport http --port 3000",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",
