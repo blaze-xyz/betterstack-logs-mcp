@@ -91,7 +91,31 @@ export interface BetterstackApiError {
   details?: any;
 }
 
-export type DataSourceType = 'recent' | 'historical' | 'metrics';
+export type DataSourceType = 'recent' | 'historical' | 'metrics' | 'union';
+
+// Time filter options matching BetterStack UI exactly
+export type RelativeTimeFilter = 
+  | 'last_30_minutes'
+  | 'last_60_minutes'
+  | 'last_3_hours'
+  | 'last_6_hours'
+  | 'last_12_hours'
+  | 'last_24_hours'
+  | 'last_2_days'
+  | 'last_7_days'
+  | 'last_14_days'
+  | 'last_30_days'
+  | 'everything';
+
+export interface CustomTimeRange {
+  start_datetime: string; // ISO datetime string
+  end_datetime: string;   // ISO datetime string
+}
+
+export interface TimeFilter {
+  relative?: RelativeTimeFilter;
+  custom?: CustomTimeRange;
+}
 
 export interface QueryOptions {
   sources?: string[];
@@ -104,11 +128,7 @@ export interface QueryOptions {
   };
   // Raw filters for s3 optimization
   rawFilters?: {
-    time_range?: {
-      start?: string;
-      end?: string;
-      last?: string;
-    };
+    time_filter?: TimeFilter;
   };
 }
 

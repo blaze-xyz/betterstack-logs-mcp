@@ -53,16 +53,11 @@ if (transport !== 'stdio' && transport !== 'http') {
   process.exit(1);
 }
 
-// Setup logging - use the directory where this script is located
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const logFile = path.join(path.dirname(__dirname), 'mcp-debug.log');
-const logToFile = (level: string, message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] ${level}: ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
-  fs.appendFileSync(logFile, logEntry);
-  console.error(`${level}: ${message}`, data || '');
-};
+// Setup logging using shared utility
+import { createLogger, getLogFilePath } from './utils/logging.js';
+
+const logToFile = createLogger(import.meta.url);
+const logFile = getLogFilePath(import.meta.url);
 
 // Load configuration
 let config;

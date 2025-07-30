@@ -18,18 +18,10 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 
-// Setup logging - use the directory where this script is located
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const logFile = path.join(path.dirname(__dirname), "mcp-debug.log");
-const logToFile = (level: string, message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] CLIENT ${level}: ${message}${
-    data ? "\n" + JSON.stringify(data, null, 2) : ""
-  }\n`;
-  fs.appendFileSync(logFile, logEntry);
-  console.error(`CLIENT ${level}: ${message}`, data || "");
-};
+// Setup logging using shared utility
+import { createLogger } from './utils/logging.js';
+
+const logToFile = createLogger(import.meta.url, 'CLIENT');
 const RATE_LIMIT = 5; // Allow up to 5 concurrent requests to avoid rate limiting issues
 
 /**
@@ -42,40 +34,37 @@ interface TimeRangeParams {
 }
 
 function extractTimeRangeParams(
-  rawFilters?: { time_range?: { start?: string; end?: string; last?: string } },
+  rawFilters?: {
+    time_filter?: {
+      relative?: string;
+      custom?: { start_datetime: string; end_datetime: string };
+    };
+  },
   sources?: (Source & { table_name: string })[]
 ): TimeRangeParams | null {
-  if (!rawFilters?.time_range || !sources?.length) {
+  if (!rawFilters?.time_filter || !sources?.length) {
     return null;
   }
 
-  const timeRange = rawFilters.time_range;
+  const timeFilter = rawFilters.time_filter;
   const now = new Date();
   let startDate: Date | null = null;
   let endDate: Date | null = null;
 
-  // Handle relative time ranges (e.g., "1h", "30m", "2d")
-  if (timeRange.last) {
-    const hours = parseRelativeTimeToHours(timeRange.last);
+  // Handle relative time filters
+  if (timeFilter.relative) {
+    const hours = relativeTimeToHours(timeFilter.relative);
     if (hours !== null) {
       startDate = new Date(now.getTime() - hours * 60 * 60 * 1000);
       endDate = now;
     }
   }
 
-  // Handle absolute start time
-  if (timeRange.start) {
+  // Handle custom time range
+  if (timeFilter.custom) {
     try {
-      startDate = new Date(timeRange.start);
-    } catch (e) {
-      // If parsing fails, ignore
-    }
-  }
-
-  // Handle absolute end time
-  if (timeRange.end) {
-    try {
-      endDate = new Date(timeRange.end);
+      startDate = new Date(timeFilter.custom.start_datetime);
+      endDate = new Date(timeFilter.custom.end_datetime);
     } catch (e) {
       // If parsing fails, ignore
     }
@@ -107,54 +96,36 @@ function extractTimeRangeParams(
 }
 
 /**
- * Helper function to parse relative time strings to hours
+ * Helper function to convert relative time filters to hours
  * Returns null if parsing fails
  */
-function parseRelativeTimeToHours(timeStr: string): number | null {
-  timeStr = timeStr.toLowerCase().trim();
-
-  // Parse compact format: '1h', '30m', '2d'
-  const compactMatch = timeStr.match(/^(\d+)([hdm])$/);
-  if (compactMatch) {
-    const amount = parseInt(compactMatch[1]);
-    const unit = compactMatch[2];
-
-    switch (unit) {
-      case "h":
-        return amount;
-      case "d":
-        return amount * 24;
-      case "m":
-        return amount / 60;
-      default:
-        return null;
-    }
+function relativeTimeToHours(relative: string): number | null {
+  switch (relative) {
+    case "last_30_minutes":
+      return 0.5;
+    case "last_60_minutes":
+      return 1;
+    case "last_3_hours":
+      return 3;
+    case "last_6_hours":
+      return 6;
+    case "last_12_hours":
+      return 12;
+    case "last_24_hours":
+      return 24;
+    case "last_2_days":
+      return 48;
+    case "last_7_days":
+      return 168;
+    case "last_14_days":
+      return 336;
+    case "last_30_days":
+      return 720;
+    case "everything":
+      return null; // No time limit
+    default:
+      return null;
   }
-
-  // Parse natural language format: '1 hour', '30 minutes', '2 days'
-  const naturalMatch = timeStr.match(
-    /^(\d+)\s+(hour|minute|day|hours|minutes|days)$/
-  );
-  if (naturalMatch) {
-    const amount = parseInt(naturalMatch[1]);
-    const unit = naturalMatch[2];
-
-    switch (unit) {
-      case "hour":
-      case "hours":
-        return amount;
-      case "day":
-      case "days":
-        return amount * 24;
-      case "minute":
-      case "minutes":
-        return amount / 60;
-      default:
-        return null;
-    }
-  }
-
-  return null;
 }
 
 export class BetterstackClient {
@@ -558,6 +529,19 @@ export class BetterstackClient {
           metricsTableName,
           tableFunction,
         });
+      } else if (dataType === "union") {
+        // Union query: combine remote and s3Cluster tables
+        const logsTableName = `t${teamId}_${tableName}_logs`;
+        const s3TableName = `t${teamId}_${tableName}_s3`;
+        tableFunction = `(SELECT dt, raw FROM remote(${logsTableName}) UNION ALL SELECT dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1)`;
+        logToFile("DEBUG", "Single source union query", {
+          source: source.name,
+          teamId,
+          tableName,
+          logsTableName,
+          s3TableName,
+          tableFunction,
+        });
       } else {
         // Recent logs
         const logsTableName = `t${teamId}_${tableName}_logs`;
@@ -572,7 +556,7 @@ export class BetterstackClient {
       }
 
       const finalQuery = baseQuery.replace(
-        /FROM\s+(logs|metrics)\b/gi,
+        /FROM\s+(logs|metrics|union_subquery)\b/gi,
         `FROM ${tableFunction}`
       );
       logToFile("INFO", "Generated single-source query", {
@@ -610,6 +594,19 @@ export class BetterstackClient {
           metricsTableName,
           tableFunction,
         });
+      } else if (dataType === "union") {
+        // Union query: combine remote and s3Cluster tables
+        const logsTableName = `t${teamId}_${tableName}_logs`;
+        const s3TableName = `t${teamId}_${tableName}_s3`;
+        tableFunction = `(SELECT dt, raw FROM remote(${logsTableName}) UNION ALL SELECT dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1)`;
+        logToFile("DEBUG", `Multi-source union query ${index + 1}`, {
+          source: source.name,
+          teamId,
+          tableName,
+          logsTableName,
+          s3TableName,
+          tableFunction,
+        });
       } else {
         // Recent logs
         const logsTableName = `t${teamId}_${tableName}_logs`;
@@ -624,7 +621,7 @@ export class BetterstackClient {
       }
 
       const sourceQuery = baseQuery.replace(
-        /FROM\s+(logs|metrics)\b/gi,
+        /FROM\s+(logs|metrics|union_subquery)\b/gi,
         `FROM ${tableFunction}`
       );
 

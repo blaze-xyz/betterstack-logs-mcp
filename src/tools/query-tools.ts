@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BetterstackClient } from '../betterstack-client.js';
-import { QueryOptions, DataSourceType } from '../types.js';
+import { QueryOptions, DataSourceType, TimeFilter } from '../types.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -18,27 +18,17 @@ export interface StructuredQueryParams {
   filters?: {
     raw_contains?: string;
     level?: string;
-    time_range?: {
-      start?: string;
-      end?: string;
-      last?: string;
-    };
+    time_filter?: TimeFilter;
   };
   limit: number;
-  dataType?: 'recent' | 'historical' | 'metrics';
+  dataType?: 'recent' | 'historical' | 'metrics' | 'union';
   format?: ClickHouseFormat;
 }
 
-// Setup logging - use the directory where this script is located
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const logFile = path.join(path.dirname(path.dirname(__dirname)), 'mcp-debug.log');
-const logToFile = (level: string, message: string, data?: any) => {
-  const timestamp = new Date().toISOString();
-  const logEntry = `[${timestamp}] QUERY-TOOLS ${level}: ${message}${data ? '\n' + JSON.stringify(data, null, 2) : ''}\n`;
-  fs.appendFileSync(logFile, logEntry);
-  console.error(`QUERY-TOOLS ${level}: ${message}`, data || '');
-};
+// Setup logging using shared utility
+import { createLogger } from '../utils/logging.js';
+
+const logToFile = createLogger(import.meta.url, 'QUERY-TOOLS');
 
 /**
  * Builds a ClickHouse SQL query from structured parameters
@@ -65,7 +55,8 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
   const selectClause = `SELECT ${selectItems.join(', ')}`;
   
   // 3. Build FROM clause (will be replaced by buildMultiSourceQuery later)
-  const fromClause = 'FROM logs';
+  // For union queries, we'll use a subquery pattern that will be replaced
+  const fromClause = dataType === 'union' ? 'FROM union_subquery' : 'FROM logs';
   
   // 4. Build WHERE clauses
   const whereConditions: string[] = [];
@@ -92,13 +83,13 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
         whereConditions.push(buildLevelFilter(filters.level));
       }
       
-      // Time range filtering
-      if (filters.time_range) {
-        const timeFilter = buildTimeRangeFilter(filters.time_range);
+      // Time filtering
+      if (filters.time_filter) {
+        const timeFilter = buildTimeFilter(filters.time_filter);
         if (timeFilter) {
           whereConditions.push(timeFilter);
         } else {
-          throw new Error(`Invalid time range format: ${JSON.stringify(filters.time_range)}`);
+          throw new Error(`Invalid time filter format: ${JSON.stringify(filters.time_filter)}`);
         }
       }
       
@@ -169,215 +160,133 @@ export function buildLevelFilter(level: string): string {
 
 
 /**
- * Converts time range parameters to ClickHouse WHERE conditions
+ * Converts time filter to ClickHouse WHERE conditions
  */
-export function buildTimeRangeFilter(timeRange: { start?: string; end?: string; last?: string }): string | null {
-  const conditions: string[] = [];
-  
-  // Handle relative time range (e.g., "last 1h")
-  if (timeRange.last) {
-    const parsedRelative = parseRelativeTime(timeRange.last);
-    if (parsedRelative) {
-      return parsedRelative;
-    }
-    
-    // If we couldn't parse the relative time, throw an error
-    throw new Error(`Invalid relative time format: '${timeRange.last}'. Use formats like '1h', '30m', '2d', '1 hour', '30 minutes', '2 days'`);
+export function buildTimeFilter(timeFilter: TimeFilter): string | null {
+  // Handle relative time filters (enum-based)
+  if (timeFilter.relative) {
+    return buildRelativeTimeFilter(timeFilter.relative);
   }
   
-  // Handle absolute start/end times
-  if (timeRange.start) {
-    const startCondition = parseTimeValue(timeRange.start, 'start');
-    if (startCondition) {
-      conditions.push(startCondition);
-    } else {
-      throw new Error(`Invalid start time format: '${timeRange.start}'. Use ISO date format (YYYY-MM-DD) or relative time like '1 hour ago'`);
+  // Handle custom time range
+  if (timeFilter.custom) {
+    const conditions: string[] = [];
+    
+    try {
+      // Validate and convert ISO datetime strings
+      const startDate = new Date(timeFilter.custom.start_datetime);
+      const endDate = new Date(timeFilter.custom.end_datetime);
+      
+      if (isNaN(startDate.getTime())) {
+        throw new Error(`Invalid start_datetime: ${timeFilter.custom.start_datetime}`);
+      }
+      if (isNaN(endDate.getTime())) {
+        throw new Error(`Invalid end_datetime: ${timeFilter.custom.end_datetime}`);
+      }
+      
+      conditions.push(`dt >= '${timeFilter.custom.start_datetime}'`);
+      conditions.push(`dt <= '${timeFilter.custom.end_datetime}'`);
+      
+      return conditions.join(' AND ');
+    } catch (error) {
+      throw new Error(`Invalid custom time range: ${error instanceof Error ? error.message : error}`);
     }
-  }
-  
-  if (timeRange.end) {
-    const endCondition = parseTimeValue(timeRange.end, 'end');
-    if (endCondition) {
-      conditions.push(endCondition);
-    } else {
-      throw new Error(`Invalid end time format: '${timeRange.end}'. Use ISO date format (YYYY-MM-DD)`);
-    }
-  }
-  
-  return conditions.length > 0 ? conditions.join(' AND ') : null;
-}
-
-/**
- * Parses relative time expressions like '1h', '30m', '2d', '1 hour', etc.
- */
-export function parseRelativeTime(timeStr: string): string | null {
-  timeStr = timeStr.toLowerCase().trim();
-  
-  // Parse compact format: '1h', '30m', '2d'  
-  const compactMatch = timeStr.match(/^(\d+)([hdm])$/);
-  if (compactMatch) {
-    const amount = parseInt(compactMatch[1]);
-    const unit = compactMatch[2];
-    
-    let interval: string;
-    switch (unit) {
-      case 'h': interval = 'HOUR'; break;
-      case 'd': interval = 'DAY'; break;
-      case 'm': interval = 'MINUTE'; break;
-      default: return null;
-    }
-    
-    return `dt >= now() - INTERVAL ${amount} ${interval}`;
-  }
-  
-  // Parse natural language: '1 hour', '30 minutes', '2 days'
-  const naturalMatch = timeStr.match(/^(\d+)\s+(hour|minute|day)s?$/);
-  if (naturalMatch) {
-    const amount = parseInt(naturalMatch[1]);
-    const unit = naturalMatch[2];
-    
-    let interval: string;
-    switch (unit) {
-      case 'hour': interval = 'HOUR'; break;
-      case 'day': interval = 'DAY'; break;
-      case 'minute': interval = 'MINUTE'; break;
-      default: return null;
-    }
-    
-    return `dt >= now() - INTERVAL ${amount} ${interval}`;
-  }
-  
-  // Parse 'ago' format: '1 hour ago', '30 minutes ago'
-  const agoMatch = timeStr.match(/^(\d+)\s+(hour|minute|day)s?\s+ago$/);
-  if (agoMatch) {
-    const amount = parseInt(agoMatch[1]);
-    const unit = agoMatch[2];
-    
-    let interval: string;
-    switch (unit) {
-      case 'hour': interval = 'HOUR'; break;
-      case 'day': interval = 'DAY'; break;
-      case 'minute': interval = 'MINUTE'; break;
-      default: return null;
-    }
-    
-    return `dt >= now() - INTERVAL ${amount} ${interval}`;
   }
   
   return null;
 }
 
 /**
- * Parses individual time values for start/end times
+ * Builds time filter conditions for relative time options
  */
-export function parseTimeValue(timeStr: string, type: 'start' | 'end'): string | null {
-  timeStr = timeStr.trim();
-  
-  // ISO date format: 2024-01-15, 2024-01-15T10:30:00, 2024-01-15T10:30:00Z, 2024-01-15T10:00:00+00:00
-  if (timeStr.match(/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(Z|[+-]\d{2}:\d{2})?)?$/)) {
-    const operator = type === 'start' ? '>=' : '<=';
-    
-    // Check if the timestamp contains timezone information (Z or offset)
-    if (timeStr.includes('Z') || timeStr.match(/[+-]\d{2}:\d{2}$/)) {
-      // Use parseDateTime64BestEffort for timezone-aware timestamps
-      return `dt ${operator} parseDateTime64BestEffort('${timeStr}')`;
-    } else {
-      // Use direct string comparison for simple timestamps
-      return `dt ${operator} '${timeStr}'`;
-    }
+export function buildRelativeTimeFilter(relative: string): string {
+  switch (relative) {
+    case 'last_30_minutes':
+      return 'dt >= now() - INTERVAL 30 MINUTE';
+    case 'last_60_minutes':
+      return 'dt >= now() - INTERVAL 60 MINUTE';
+    case 'last_3_hours':
+      return 'dt >= now() - INTERVAL 3 HOUR';
+    case 'last_6_hours':
+      return 'dt >= now() - INTERVAL 6 HOUR';
+    case 'last_12_hours':
+      return 'dt >= now() - INTERVAL 12 HOUR';
+    case 'last_24_hours':
+      return 'dt >= now() - INTERVAL 24 HOUR';
+    case 'last_2_days':
+      return 'dt >= now() - INTERVAL 2 DAY';
+    case 'last_7_days':
+      return 'dt >= now() - INTERVAL 7 DAY';
+    case 'last_14_days':
+      return 'dt >= now() - INTERVAL 14 DAY';
+    case 'last_30_days':
+      return 'dt >= now() - INTERVAL 30 DAY';
+    case 'everything':
+      return ''; // No time filter
+    default:
+      throw new Error(`Unsupported relative time filter: ${relative}`);
   }
-  
-  // Relative time for start only: '1 hour ago'
-  if (type === 'start' && timeStr.includes('ago')) {
-    const parsed = parseRelativeTime(timeStr);
-    return parsed;
-  }
-  
-  return null;
 }
 
 /**
- * Automatically determines whether to use 'recent' or 'historical' data based on time filters
+ * Determines data source type based on time filters
  * Logic:
- * - No time filter → 'recent' (default)
- * - Time filter within last 24 hours → 'recent'
- * - Time filter beyond 24 hours → 'historical'
+ * - No time filter → 'union' (query both recent and historical)
+ * - Time filter includes last 24 hours → 'union' (use UNION ALL)
+ * - Time filter excludes last 24 hours → 'historical' (s3Cluster only)
  */
 function determineDataType(filters?: StructuredQueryParams['filters']): DataSourceType {
-  if (!filters?.time_range) {
-    return 'recent'; // Default to recent logs
+  if (!filters?.time_filter) {
+    return 'union'; // Default to union for comprehensive coverage
   }
 
-  const timeRange = filters.time_range;
+  const timeFilter = filters.time_filter;
   const now = new Date();
   const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-  // Handle relative time ranges (e.g., "1h", "30m", "2d")
-  if (timeRange.last) {
-    const hours = parseRelativeTimeToHours(timeRange.last);
-    if (hours !== null && hours <= 24) {
-      return 'recent';
-    } else {
-      return 'historical';
+  // Handle relative time filters
+  if (timeFilter.relative) {
+    switch (timeFilter.relative) {
+      case 'last_30_minutes':
+      case 'last_60_minutes':
+      case 'last_3_hours':
+      case 'last_6_hours':
+      case 'last_12_hours':
+      case 'last_24_hours':
+        return 'union'; // These include recent data, use UNION ALL
+      case 'last_2_days':
+      case 'last_7_days':
+      case 'last_14_days':
+      case 'last_30_days':
+      case 'everything':
+        return 'union'; // These include recent data, use UNION ALL
+      default:
+        return 'union';
     }
   }
 
-  // Handle absolute start time
-  if (timeRange.start) {
+  // Handle custom time ranges
+  if (timeFilter.custom) {
     try {
-      const startDate = new Date(timeRange.start);
-      if (startDate < twentyFourHoursAgo) {
-        return 'historical';
+      const startDate = new Date(timeFilter.custom.start_datetime);
+      const endDate = new Date(timeFilter.custom.end_datetime);
+      
+      // If the time range includes the last 24 hours, use union
+      if (endDate >= twentyFourHoursAgo) {
+        return 'union';
       } else {
-        return 'recent';
+        // If the entire range is before the last 24 hours, use historical only
+        return 'historical';
       }
     } catch (e) {
-      // If date parsing fails, default to recent
-      return 'recent';
+      // If parsing fails, default to union for safety
+      return 'union';
     }
   }
 
-  // If only end time is specified, assume recent
-  return 'recent';
+  return 'union';
 }
 
-/**
- * Helper function to parse relative time strings to hours
- * Returns null if parsing fails
- */
-function parseRelativeTimeToHours(timeStr: string): number | null {
-  timeStr = timeStr.toLowerCase().trim();
-  
-  // Parse compact format: '1h', '30m', '2d'  
-  const compactMatch = timeStr.match(/^(\d+)([hdm])$/);
-  if (compactMatch) {
-    const amount = parseInt(compactMatch[1]);
-    const unit = compactMatch[2];
-    
-    switch (unit) {
-      case 'h': return amount;
-      case 'd': return amount * 24;
-      case 'm': return amount / 60;
-      default: return null;
-    }
-  }
-  
-  // Parse natural language: '1 hour', '30 minutes', '2 days'
-  const naturalMatch = timeStr.match(/^(\d+)\s+(hour|minute|day)s?$/);
-  if (naturalMatch) {
-    const amount = parseInt(naturalMatch[1]);
-    const unit = naturalMatch[2];
-    
-    switch (unit) {
-      case 'hour': return amount;
-      case 'day': return amount * 24;
-      case 'minute': return amount / 60;
-      default: return null;
-    }
-  }
-  
-  return null;
-}
 
 export function registerQueryTools(server: McpServer, client: BetterstackClient) {
   
@@ -495,12 +404,26 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         // LOG LEVEL FILTERING (using pattern matching)
         level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level (uses pattern matching)"),
         
-        // TIME RANGE FILTERING
-        time_range: z.object({
-          start: z.string().optional().describe("Start time (ISO date or relative like '1 hour ago')"),
-          end: z.string().optional().describe("End time (ISO date or relative)"),
-          last: z.string().optional().describe("Relative time range (e.g., '1h', '30m', '2d')")
-        }).optional().describe("Time range for filtering logs"),
+        // TIME FILTERING
+        time_filter: z.object({
+          relative: z.enum([
+            'last_30_minutes',
+            'last_60_minutes', 
+            'last_3_hours',
+            'last_6_hours',
+            'last_12_hours',
+            'last_24_hours',
+            'last_2_days',
+            'last_7_days',
+            'last_14_days',
+            'last_30_days',
+            'everything'
+          ]).optional().describe("Relative time filter matching BetterStack UI options"),
+          custom: z.object({
+            start_datetime: z.string().describe("ISO datetime string for start time"),
+            end_datetime: z.string().describe("ISO datetime string for end time")
+          }).optional().describe("Custom time range with precise datetime strings")
+        }).optional().describe("Time filter for logs - use either relative or custom, not both"),
         
       }).optional().describe("Filters to apply to log query"),
 
@@ -529,7 +452,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           sourceGroup: source_group,
           dataType,
           limit,
-          rawFilters: filters ? { time_range: filters.time_range } : undefined
+          rawFilters: filters ? { time_filter: filters.time_filter } : undefined
         };
         
         const resolvedSources = await (client as any).resolveSources(options);
