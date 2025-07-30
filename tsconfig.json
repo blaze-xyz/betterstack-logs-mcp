@@ -9,8 +9,12 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*", 
+    "scripts/run-manual-tests.ts",
+    "tests/helpers/**/*"
+  ],
+  "exclude": ["node_modules", "dist", "tests/unit/**/*", "tests/integration/**/*", "tests/e2e/**/*", "tests/performance/**/*"]
 }

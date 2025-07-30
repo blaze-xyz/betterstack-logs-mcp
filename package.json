@@ -27,7 +27,10 @@
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
-    "test:ci": "vitest run --coverage --reporter=verbose"
+    "test:ci": "vitest run --coverage --reporter=verbose",
+    "test:manual": "npm run build && node dist/scripts/run-manual-tests.js",
+    "test:manual:list": "npm run test:manual -- --list",
+    "test:manual:verbose": "npm run test:manual -- --verbose"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.0",
