@@ -236,37 +236,6 @@ describe('buildStructuredQuery Function', () => {
     })
   })
 
-  describe('JSON Field Filtering', () => {
-    it('should generate JSON field filter using getJSON', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          json_field: {
-            path: 'user.id',
-            value: '12345'
-          }
-        },
-        limit: 10
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE getJSON(raw, 'user.id') = '12345' ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
-
-    it('should handle complex JSON field paths', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          json_field: {
-            path: 'metadata.request.headers.user_agent',
-            value: 'Mozilla/5.0'
-          }
-        },
-        limit: 10
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE getJSON(raw, 'metadata.request.headers.user_agent') = 'Mozilla/5.0' ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
-  })
 
   describe('Multiple Filters', () => {
     it('should combine multiple filters with AND', async () => {
@@ -290,10 +259,6 @@ describe('buildStructuredQuery Function', () => {
         filters: {
           raw_contains: 'payment',
           level: 'INFO',
-          json_field: {
-            path: 'transaction.type',
-            value: 'credit_card'
-          },
           time_range: {
             last: '2d'
           }
@@ -302,7 +267,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%payment%') AND lower(getJSON(raw, 'level')) = lower('INFO') AND dt >= now() - INTERVAL 2 DAY AND getJSON(raw, 'transaction.type') = 'credit_card' ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%payment%') AND lower(getJSON(raw, 'level')) = lower('INFO') AND dt >= now() - INTERVAL 2 DAY ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle tight time window debugging with error filtering', async () => {
@@ -333,10 +298,6 @@ describe('buildStructuredQuery Function', () => {
         ],
         filters: {
           level: 'ERROR',
-          json_field: {
-            path: 'service.name',
-            value: 'payment-api'
-          },
           time_range: {
             last: '4h'
           }
@@ -345,7 +306,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method, getJSON(raw, 'response.status_code') as status FROM logs WHERE lower(getJSON(raw, 'level')) = lower('ERROR') AND dt >= now() - INTERVAL 4 HOUR AND getJSON(raw, 'service.name') = 'payment-api' ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method, getJSON(raw, 'response.status_code') as status FROM logs WHERE lower(getJSON(raw, 'level')) = lower('ERROR') AND dt >= now() - INTERVAL 4 HOUR ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle no filters (fields and ordering only)', async () => {

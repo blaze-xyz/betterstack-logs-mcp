@@ -239,7 +239,7 @@ describe('Query Logs Integration Tests', () => {
 
       const result = await mcpHelper.callTool('query_logs', {
         fields: ['dt', 'raw', 'json'],
-        filters: { json_field: { path: 'action', value: 'login' } },
+        filters: { raw_contains: 'User action' },
         limit: 1
       })
 

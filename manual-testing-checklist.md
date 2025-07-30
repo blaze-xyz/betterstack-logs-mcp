@@ -8,10 +8,9 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 - [ ] **Raw Content Filtering Tests** (2 tests)
 - [ ] **Log Level Filtering Tests** (3 tests)
 - [ ] **Time Range Filtering Tests** (5 tests)
-- [ ] **JSON Field Filtering Tests** (3 tests)
-- [ ] **Combined Filter Tests** (3 tests)
+- [ ] **Combined Filter Tests** (2 tests)
 - [ ] **Limit Testing** (2 tests)
-- [ ] **Complex Real-World Scenarios** (3 tests)
+- [ ] **Complex Real-World Scenarios** (2 tests)
 - [ ] **Output Format Testing** (5 tests)
 
 ---
@@ -273,7 +272,7 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**: It was hard to test with 30 minutes, but setting it to 4 confirmed that the logs truncate according to the time filter.
 
-### [ ] Test 4.3: Specific time range with start and end
+### [x] Test 4.3: Specific time range with start and end
 
 ```json
 {
@@ -355,99 +354,14 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ---
 
-## 5. JSON Field Filtering Tests
+## 5. Combined Filter Tests
 
-### [ ] Test 5.1: Filter by user ID
+### [ ] Test 5.1: Multiple filters combined
 
 ```json
 {
   "jsonrpc": "2.0",
   "id": 17,
-  "method": "tools/call",
-  "params": {
-    "name": "query_logs",
-    "arguments": {
-      "filters": {
-        "json_field": {
-          "path": "user.id",
-          "value": "12345"
-        }
-      },
-      "sources": ["1386515"],
-      "limit": 10
-    }
-  }
-}
-```
-
-**Expected**: Should return logs where user.id = "12345"
-**Result**: ✅ / ❌
-**Notes**:
-
-### [ ] Test 5.2: Filter by request method
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 18,
-  "method": "tools/call",
-  "params": {
-    "name": "query_logs",
-    "arguments": {
-      "filters": {
-        "json_field": {
-          "path": "request.method",
-          "value": "POST"
-        }
-      },
-      "sources": ["1386515"],
-      "limit": 10
-    }
-  }
-}
-```
-
-**Expected**: Should return logs where request.method = "POST"
-**Result**: ✅ / ❌
-**Notes**:
-
-### [ ] Test 5.3: Filter by nested JSON field
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 19,
-  "method": "tools/call",
-  "params": {
-    "name": "query_logs",
-    "arguments": {
-      "filters": {
-        "json_field": {
-          "path": "context.environment",
-          "value": "production"
-        }
-      },
-      "sources": ["1386515"],
-      "limit": 10
-    }
-  }
-}
-```
-
-**Expected**: Should return logs where context.environment = "production"
-**Result**: ✅ / ❌
-**Notes**:
-
----
-
-## 6. Combined Filter Tests
-
-### [ ] Test 6.1: Multiple filters combined
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 20,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -470,40 +384,12 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 6.2: Raw content + JSON field filtering
+### [ ] Test 5.2: Level + time range + JSON extraction
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 21,
-  "method": "tools/call",
-  "params": {
-    "name": "query_logs",
-    "arguments": {
-      "filters": {
-        "raw_contains": "HTTP",
-        "json_field": {
-          "path": "status",
-          "value": "500"
-        }
-      },
-      "sources": ["1386515"],
-      "limit": 10
-    }
-  }
-}
-```
-
-**Expected**: Should return logs containing "HTTP" with status = "500"
-**Result**: ✅ / ❌
-**Notes**:
-
-### [ ] Test 6.3: Level + time range + JSON extraction
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 22,
+  "id": 18,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -531,14 +417,14 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ---
 
-## 7. Limit Testing
+## 6. Limit Testing
 
-### [ ] Test 7.1: Small limit
+### [ ] Test 6.1: Small limit
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 23,
+  "id": 19,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -554,12 +440,12 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 7.2: Large limit
+### [ ] Test 6.2: Large limit
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 24,
+  "id": 20,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -577,14 +463,14 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ---
 
-## 8. Complex Real-World Scenarios
+## 7. Complex Real-World Scenarios
 
-### [ ] Test 8.1: Debug login issues
+### [ ] Test 7.1: Debug login issues
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 25,
+  "id": 21,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -611,12 +497,12 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 8.2: Monitor API performance
+### [ ] Test 7.2: Monitor API performance
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 25,
+  "id": 22,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -643,50 +529,16 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 8.3: Find specific user activity
-
-```json
-{
-  "jsonrpc": "2.0",
-  "id": 26,
-  "method": "tools/call",
-  "params": {
-    "name": "query_logs",
-    "arguments": {
-      "json_fields": [
-        { "path": "action", "alias": "user_action" },
-        { "path": "resource", "alias": "resource_accessed" }
-      ],
-      "filters": {
-        "json_field": {
-          "path": "user.id",
-          "value": "user_12345"
-        },
-        "time_range": {
-          "start": "1 day ago"
-        }
-      },
-      "sources": ["1386515"],
-      "limit": 30
-    }
-  }
-}
-```
-
-**Expected**: Should return user activity for specific user ID with action and resource details
-**Result**: ✅ / ❌
-**Notes**:
-
 ---
 
-## 9. Output Format Testing
+## 8. Output Format Testing
 
-### [ ] Test 9.1: Default JSONEachRow format
+### [ ] Test 8.1: Default JSONEachRow format
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 27,
+  "id": 23,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -702,12 +554,12 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 9.2: Pretty format for human reading
+### [ ] Test 8.2: Pretty format for human reading
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 28,
+  "id": 24,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -724,12 +576,12 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 9.3: CSV format for data export
+### [ ] Test 8.3: CSV format for data export
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 29,
+  "id": 25,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -746,12 +598,12 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 9.4: JSON format (single object)
+### [ ] Test 8.4: JSON format (single object)
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 30,
+  "id": 26,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -768,12 +620,12 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 **Result**: ✅ / ❌
 **Notes**:
 
-### [ ] Test 9.5: TSV format for spreadsheet import
+### [ ] Test 8.5: TSV format for spreadsheet import
 
 ```json
 {
   "jsonrpc": "2.0",
-  "id": 31,
+  "id": 27,
   "method": "tools/call",
   "params": {
     "name": "query_logs",
@@ -816,9 +668,9 @@ This checklist covers comprehensive testing of the `query_logs` tool via Postman
 
 ### Overall Test Status:
 
-**Tests Completed**: ** / 29  
-**Tests Passed**: ** / 29  
-**Tests Failed**: \_\_ / 29
+**Tests Completed**: ** / 24  
+**Tests Passed**: ** / 24  
+**Tests Failed**: \_\_ / 24
 
 **Start Time**: **\*\***\_\_\_\_**\*\***  
 **End Time**: **\*\***\_\_\_\_**\*\***  

@@ -23,10 +23,6 @@ export interface StructuredQueryParams {
       end?: string;
       last?: string;
     };
-    json_field?: {
-      path: string;
-      value: string;
-    };
   };
   limit: number;
   dataType?: 'recent' | 'historical' | 'metrics';
@@ -106,13 +102,6 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
         }
       }
       
-      // JSON field filtering (using getJSON)
-      if (filters.json_field) {
-        validateJsonFieldFilter(filters.json_field);
-        const jsonPath = sanitizeSqlString(filters.json_field.path);
-        const jsonValue = sanitizeSqlString(filters.json_field.value);
-        whereConditions.push(`getJSON(raw, '${jsonPath}') = '${jsonValue}'`);
-      }
     } catch (error) {
       throw new Error(`Filter validation failed: ${error instanceof Error ? error.message : error}`);
     }
@@ -166,23 +155,6 @@ export function sanitizeSqlString(input: string): string {
   return input.replace(/'/g, "''");
 }
 
-/**
- * Validates JSON field filter parameters
- */
-export function validateJsonFieldFilter(jsonField: { path: string; value: string }): void {
-  if (!jsonField.path || typeof jsonField.path !== 'string') {
-    throw new Error('JSON field path is required and must be a string');
-  }
-  
-  if (!jsonField.value || typeof jsonField.value !== 'string') {
-    throw new Error('JSON field value is required and must be a string');
-  }
-  
-  // Validate JSON path format (basic validation)
-  if (!jsonField.path.match(/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*$/)) {
-    throw new Error(`Invalid JSON path format: ${jsonField.path}. Use dot notation like 'user.id' or 'request.method'`);
-  }
-}
 
 /**
  * Converts time range parameters to ClickHouse WHERE conditions
@@ -518,11 +490,6 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           last: z.string().optional().describe("Relative time range (e.g., '1h', '30m', '2d')")
         }).optional().describe("Time range for filtering logs"),
         
-        // STRUCTURED DATA FILTERING  
-        json_field: z.object({
-          path: z.string().describe("JSON field path (e.g., 'user.id', 'request.method')"),
-          value: z.string().describe("Expected value for the JSON field")
-        }).optional().describe("Filter by JSON field values using getJSON(raw, 'path')")
       }).optional().describe("Filters to apply to log query"),
 
       // LIMITS - Result size control (always ordered by most recent first)
