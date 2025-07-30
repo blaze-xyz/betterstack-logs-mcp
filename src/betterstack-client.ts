@@ -30,7 +30,132 @@ const logToFile = (level: string, message: string, data?: any) => {
   fs.appendFileSync(logFile, logEntry);
   console.error(`CLIENT ${level}: ${message}`, data || "");
 };
-const RATE_LIMIT = 1;
+const RATE_LIMIT = 5; // Allow up to 5 concurrent requests to avoid rate limiting issues
+
+/**
+ * Extract time range from raw filters and convert to microsecond timestamps
+ */
+interface TimeRangeParams {
+  rangeFrom?: string;
+  rangeTo?: string;
+  table?: string;
+}
+
+function extractTimeRangeParams(
+  rawFilters?: { time_range?: { start?: string; end?: string; last?: string } },
+  sources?: (Source & { table_name: string })[]
+): TimeRangeParams | null {
+  if (!rawFilters?.time_range || !sources?.length) {
+    return null;
+  }
+
+  const timeRange = rawFilters.time_range;
+  const now = new Date();
+  let startDate: Date | null = null;
+  let endDate: Date | null = null;
+
+  // Handle relative time ranges (e.g., "1h", "30m", "2d")
+  if (timeRange.last) {
+    const hours = parseRelativeTimeToHours(timeRange.last);
+    if (hours !== null) {
+      startDate = new Date(now.getTime() - hours * 60 * 60 * 1000);
+      endDate = now;
+    }
+  }
+
+  // Handle absolute start time
+  if (timeRange.start) {
+    try {
+      startDate = new Date(timeRange.start);
+    } catch (e) {
+      // If parsing fails, ignore
+    }
+  }
+
+  // Handle absolute end time
+  if (timeRange.end) {
+    try {
+      endDate = new Date(timeRange.end);
+    } catch (e) {
+      // If parsing fails, ignore
+    }
+  }
+
+  if (!startDate && !endDate) {
+    return null;
+  }
+
+  const result: TimeRangeParams = {};
+
+  // Convert to microsecond timestamps (BetterStack expects microseconds)
+  if (startDate) {
+    result.rangeFrom = startDate.getTime().toString();
+  }
+  if (endDate) {
+    result.rangeTo = endDate.getTime().toString();
+  }
+
+  // Extract table name from first source
+  if (sources[0]) {
+    const source = sources[0];
+    const teamId = (source as any).team_id;
+    const tableName = (source as any).table_name;
+    result.table = `t${teamId}.${tableName}`;
+  }
+
+  return result;
+}
+
+/**
+ * Helper function to parse relative time strings to hours
+ * Returns null if parsing fails
+ */
+function parseRelativeTimeToHours(timeStr: string): number | null {
+  timeStr = timeStr.toLowerCase().trim();
+
+  // Parse compact format: '1h', '30m', '2d'
+  const compactMatch = timeStr.match(/^(\d+)([hdm])$/);
+  if (compactMatch) {
+    const amount = parseInt(compactMatch[1]);
+    const unit = compactMatch[2];
+
+    switch (unit) {
+      case "h":
+        return amount;
+      case "d":
+        return amount * 24;
+      case "m":
+        return amount / 60;
+      default:
+        return null;
+    }
+  }
+
+  // Parse natural language format: '1 hour', '30 minutes', '2 days'
+  const naturalMatch = timeStr.match(
+    /^(\d+)\s+(hour|minute|day|hours|minutes|days)$/
+  );
+  if (naturalMatch) {
+    const amount = parseInt(naturalMatch[1]);
+    const unit = naturalMatch[2];
+
+    switch (unit) {
+      case "hour":
+      case "hours":
+        return amount;
+      case "day":
+      case "days":
+        return amount * 24;
+      case "minute":
+      case "minutes":
+        return amount / 60;
+      default:
+        return null;
+    }
+  }
+
+  return null;
+}
 
 export class BetterstackClient {
   private telemetryClient: AxiosInstance;
@@ -102,9 +227,7 @@ export class BetterstackClient {
     return Date.now() - timestamp < this.config.cacheTtlSeconds * 1000;
   }
 
-  private transformApiSource(
-    apiSource: BetterstackApiSource
-  ): Source & {
+  private transformApiSource(apiSource: BetterstackApiSource): Source & {
     source_group_id?: number;
     table_name: string;
     team_id: number;
@@ -417,7 +540,7 @@ export class BetterstackClient {
 
       if (dataType === "historical") {
         const s3TableName = `t${teamId}_${tableName}_s3`;
-        tableFunction = `s3Cluster(primary, ${s3TableName})`;
+        tableFunction = `s3Cluster(primary, ${s3TableName}, filename='{{_s3_glob_interpolate}}')`;
         logToFile("DEBUG", "Single source historical query", {
           source: source.name,
           teamId,
@@ -469,7 +592,7 @@ export class BetterstackClient {
 
       if (dataType === "historical") {
         const s3TableName = `t${teamId}_${tableName}_s3`;
-        tableFunction = `s3Cluster(primary, ${s3TableName})`;
+        tableFunction = `s3Cluster(primary, ${s3TableName}, filename='{{_s3_glob_interpolate}}')`;
         logToFile("DEBUG", `Multi-source historical query ${index + 1}`, {
           source: source.name,
           teamId,
@@ -630,6 +753,48 @@ export class BetterstackClient {
     }
 
     try {
+      // Extract time range parameters for s3 optimization on historical queries
+      let requestUrl = "/";
+      let urlParams: URLSearchParams | null = null;
+
+      if (dataType === "historical" && options.rawFilters) {
+        const timeRangeParams = extractTimeRangeParams(
+          options.rawFilters,
+          sources
+        );
+
+        logToFile("DEBUG", "Processing historical query optimization", {
+          dataType,
+          hasRawFilters: !!options.rawFilters,
+          rawFilters: options.rawFilters,
+          extractedTimeRangeParams: timeRangeParams,
+          sourcesForExtraction: sources.map((s) => ({
+            id: s.id,
+            name: s.name,
+            table_name: (s as any).table_name,
+            team_id: (s as any).team_id,
+          })),
+        });
+
+        if (timeRangeParams) {
+          urlParams = new URLSearchParams();
+
+          if (timeRangeParams.table) {
+            urlParams.append("table", timeRangeParams.table);
+          }
+          if (timeRangeParams.rangeFrom) {
+            urlParams.append("range-from", timeRangeParams.rangeFrom);
+          }
+          if (timeRangeParams.rangeTo) {
+            urlParams.append("range-to", timeRangeParams.rangeTo);
+          }
+
+          requestUrl = `/?${urlParams.toString()}`;
+        }
+      }
+
+      const fullRequestUrl = this.config.clickhouseQueryEndpoint + requestUrl;
+
       logToFile("INFO", "Making ClickHouse API request", {
         query: finalQuery,
         queryLength: finalQuery.length,
@@ -637,11 +802,70 @@ export class BetterstackClient {
         username: this.config.clickhouseUsername,
         tableReferences: finalQuery.match(/remote\([^)]+\)/g) || [],
         s3ClusterReferences: finalQuery.match(/s3Cluster\([^)]+\)/g) || [],
+        requestPath: requestUrl,
+        fullRequestUrl: fullRequestUrl,
+        urlParams: urlParams ? Object.fromEntries(urlParams) : null,
+        dataType,
+        isHistoricalQuery: dataType === "historical",
+        rawFiltersProvided: !!options.rawFilters,
       });
 
-      const response = await BetterstackClient.rateLimiter(() =>
-        this.queryClient.post("/", finalQuery)
-      );
+      // Implement BetterStack's recommended retry logic for 429 errors
+      let attempt = 0;
+      const maxRetries = 3;
+      let response: any;
+
+      while (attempt <= maxRetries) {
+        try {
+          // Add delay between requests as recommended by BetterStack (1-2 seconds)
+          if (attempt > 0) {
+            const delayMs = Math.min(1000 * Math.pow(2, attempt - 1), 10000); // Exponential backoff: 1s, 2s, 4s
+            logToFile("INFO", "Retrying after delay due to rate limit", {
+              attempt,
+              delayMs,
+              isHistoricalQuery: dataType === "historical",
+            });
+            await new Promise((resolve) => setTimeout(resolve, delayMs));
+          } else if (dataType === "historical") {
+            // Add small initial delay for historical queries to reduce concurrent load
+            const historicalDelay = 500; // 500ms delay for historical queries
+            logToFile("DEBUG", "Adding initial delay for historical query", {
+              delayMs: historicalDelay,
+            });
+            await new Promise((resolve) =>
+              setTimeout(resolve, historicalDelay)
+            );
+          }
+
+          response = await BetterstackClient.rateLimiter(() =>
+            this.queryClient.post(requestUrl, finalQuery)
+          );
+
+          break; // Success, exit retry loop
+        } catch (error: any) {
+          attempt++;
+
+          // Check if this is a 429 rate limit error
+          if (error?.response?.status === 429 && attempt <= maxRetries) {
+            logToFile("WARN", "Rate limit hit, will retry", {
+              attempt,
+              maxRetries,
+              statusCode: error.response.status,
+              retryAfter: error.response.headers?.["retry-after"],
+              isHistoricalQuery: dataType === "historical",
+            });
+            continue; // Try again
+          }
+
+          // Not a rate limit error, or exceeded max retries
+          throw error;
+        }
+      }
+
+      // Ensure we have a response
+      if (!response) {
+        throw new Error("No response received after all retry attempts");
+      }
 
       logToFile("INFO", "ClickHouse API response received", {
         keys: Object.keys(response),
@@ -678,7 +902,7 @@ export class BetterstackClient {
         status: response?.status,
         statusText: response?.statusText,
         endpoint: this.config.clickhouseQueryEndpoint,
-        username: this.config.clickhouseUsername
+        username: this.config.clickhouseUsername,
       });
 
       // First, log the complete raw error structure to understand what we're working with
@@ -965,44 +1189,56 @@ export class BetterstackClient {
 
   // Schema introspection methods
 
-  private generateTableName(source: Source & { table_name: string; team_id: number }, dataType: DataSourceType): string {
+  private generateTableName(
+    source: Source & { table_name: string; team_id: number },
+    dataType: DataSourceType
+  ): string {
     const { team_id, table_name } = source;
-    const suffix = dataType === 'metrics' ? '_metrics' : dataType === 'historical' ? '_s3' : '_logs';
+    const suffix =
+      dataType === "metrics"
+        ? "_metrics"
+        : dataType === "historical"
+        ? "_s3"
+        : "_logs";
     return `t${team_id}_${table_name}${suffix}`;
   }
 
-  async getTableSchema(tableName: string, dataType: DataSourceType = 'recent'): Promise<TableSchema | null> {
+  async getTableSchema(
+    tableName: string,
+    dataType: DataSourceType = "recent"
+  ): Promise<TableSchema | null> {
     // Check cache first
     const cached = this.schemaCache.get(tableName);
     if (cached && this.isCacheValid(cached.cacheTimestamp)) {
-      logToFile('DEBUG', 'Using cached table schema', {
+      logToFile("DEBUG", "Using cached table schema", {
         tableName,
         cacheAge: Date.now() - cached.cacheTimestamp,
-        columnCount: cached.columns.length
+        columnCount: cached.columns.length,
       });
       return cached;
     }
 
     // Use correct table access pattern based on data type
-    const tableFunction = dataType === 'historical' 
-      ? `s3Cluster(primary, ${tableName})` 
-      : `remote(${tableName})`;
+    const tableFunction =
+      dataType === "historical"
+        ? `s3Cluster(primary, ${tableName})`
+        : `remote(${tableName})`;
     const describeQuery = `DESCRIBE TABLE ${tableFunction}`;
 
     try {
-      logToFile('INFO', 'Fetching table schema from ClickHouse', { tableName });
-      
-      const response = await this.queryClient.post('/', describeQuery, {
+      logToFile("INFO", "Fetching table schema from ClickHouse", { tableName });
+
+      const response = await this.queryClient.post("/", describeQuery, {
         headers: {
-          'Content-Type': 'text/plain',
+          "Content-Type": "text/plain",
         },
         params: {
-          default_format: 'JSON',
+          default_format: "JSON",
         },
       });
 
       if (!response.data || !response.data.data) {
-        logToFile('WARN', 'No schema data returned for table', { tableName });
+        logToFile("WARN", "No schema data returned for table", { tableName });
         return null;
       }
 
@@ -1016,8 +1252,8 @@ export class BetterstackClient {
         ttl_expression: row.ttl_expression || row[6],
       }));
 
-      const availableFields = columns.map(col => col.name);
-      
+      const availableFields = columns.map((col) => col.name);
+
       const schema: TableSchema = {
         tableName,
         columns,
@@ -1026,32 +1262,43 @@ export class BetterstackClient {
       };
 
       this.schemaCache.set(tableName, schema);
-      
-      logToFile('INFO', 'Table schema fetched and cached', {
+
+      logToFile("INFO", "Table schema fetched and cached", {
         tableName,
         columnCount: columns.length,
-        availableFields
+        availableFields,
       });
 
       return schema;
     } catch (error: any) {
-      logToFile('ERROR', 'Failed to fetch table schema', {
+      logToFile("ERROR", "Failed to fetch table schema", {
         tableName,
         query: describeQuery,
         error: error.message,
-        code: error.code || error.response?.status
+        code: error.code || error.response?.status,
       });
-      
+
       // If table doesn't exist, return null instead of throwing
-      if (error.response?.status === 404 || error.message?.includes('doesn\'t exist')) {
+      if (
+        error.response?.status === 404 ||
+        error.message?.includes("doesn't exist")
+      ) {
         return null;
       }
-      
+
       throw error;
     }
   }
 
-  async validateFields(fields: string[], sources: (Source & { table_name: string; team_id: number })[], dataType: DataSourceType = 'recent'): Promise<{ validFields: string[]; invalidFields: string[]; suggestions: Record<string, string[]> }> {
+  async validateFields(
+    fields: string[],
+    sources: (Source & { table_name: string; team_id: number })[],
+    dataType: DataSourceType = "recent"
+  ): Promise<{
+    validFields: string[];
+    invalidFields: string[];
+    suggestions: Record<string, string[]>;
+  }> {
     const validFields: string[] = [];
     const invalidFields: string[] = [];
     const suggestions: Record<string, string[]> = {};
@@ -1060,11 +1307,11 @@ export class BetterstackClient {
     for (const source of sources) {
       const tableName = this.generateTableName(source, dataType);
       const schema = await this.getTableSchema(tableName, dataType);
-      
+
       if (!schema) {
-        logToFile('WARN', 'No schema available for source', { 
-          sourceName: source.name, 
-          tableName 
+        logToFile("WARN", "No schema available for source", {
+          sourceName: source.name,
+          tableName,
         });
         continue;
       }
@@ -1077,15 +1324,20 @@ export class BetterstackClient {
         } else {
           if (!invalidFields.includes(field)) {
             invalidFields.push(field);
-            
+
             // Find similar field names as suggestions
-            const similarFields = schema.availableFields.filter(available => {
-              if (!available || typeof available !== 'string') return false;
-              return available.toLowerCase().includes(field.toLowerCase()) ||
-                     field.toLowerCase().includes(available.toLowerCase()) ||
-                     this.calculateSimilarity(field.toLowerCase(), available.toLowerCase()) > 0.6;
+            const similarFields = schema.availableFields.filter((available) => {
+              if (!available || typeof available !== "string") return false;
+              return (
+                available.toLowerCase().includes(field.toLowerCase()) ||
+                field.toLowerCase().includes(available.toLowerCase()) ||
+                this.calculateSimilarity(
+                  field.toLowerCase(),
+                  available.toLowerCase()
+                ) > 0.6
+              );
             });
-            
+
             if (similarFields.length > 0) {
               suggestions[field] = similarFields;
             }
@@ -1094,11 +1346,11 @@ export class BetterstackClient {
       }
     }
 
-    logToFile('DEBUG', 'Field validation results', {
+    logToFile("DEBUG", "Field validation results", {
       requestedFields: fields,
       validFields,
       invalidFields,
-      suggestions
+      suggestions,
     });
 
     return { validFields, invalidFields, suggestions };
@@ -1107,24 +1359,24 @@ export class BetterstackClient {
   private calculateSimilarity(str1: string, str2: string): number {
     const longer = str1.length > str2.length ? str1 : str2;
     const shorter = str1.length > str2.length ? str2 : str1;
-    
+
     if (longer.length === 0) return 1.0;
-    
+
     const editDistance = this.levenshteinDistance(longer, shorter);
     return (longer.length - editDistance) / longer.length;
   }
 
   private levenshteinDistance(str1: string, str2: string): number {
     const matrix: number[][] = [];
-    
+
     for (let i = 0; i <= str2.length; i++) {
       matrix[i] = [i];
     }
-    
+
     for (let j = 0; j <= str1.length; j++) {
       matrix[0][j] = j;
     }
-    
+
     for (let i = 1; i <= str2.length; i++) {
       for (let j = 1; j <= str1.length; j++) {
         if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
@@ -1138,19 +1390,28 @@ export class BetterstackClient {
         }
       }
     }
-    
+
     return matrix[str2.length][str1.length];
   }
 
-  async getSourcesWithSchema(sources: (Source & { table_name: string; team_id: number })[], dataType: DataSourceType = 'recent'): Promise<Array<{ source: Source & { table_name: string; team_id: number }, schema: TableSchema | null, tableName: string }>> {
+  async getSourcesWithSchema(
+    sources: (Source & { table_name: string; team_id: number })[],
+    dataType: DataSourceType = "recent"
+  ): Promise<
+    Array<{
+      source: Source & { table_name: string; team_id: number };
+      schema: TableSchema | null;
+      tableName: string;
+    }>
+  > {
     const results = [];
-    
+
     for (const source of sources) {
       const tableName = this.generateTableName(source, dataType);
       const schema = await this.getTableSchema(tableName, dataType);
       results.push({ source, schema, tableName });
     }
-    
+
     return results;
   }
 }

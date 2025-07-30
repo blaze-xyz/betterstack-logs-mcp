@@ -18,6 +18,7 @@
     "dev": "tsc --watch",
     "inspect": "node --inspect dist/index.js",
     "debug": "npm run build && node --inspect dist/index.js --transport http --port 3000",
+    "run": "npm run build && node dist/index.js --transport http --port 3000",
     "test": "vitest",
     "test:unit": "vitest run tests/unit",
     "test:integration": "vitest run tests/integration",

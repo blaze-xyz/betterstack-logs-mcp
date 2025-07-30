@@ -102,6 +102,14 @@ export interface QueryOptions {
     start: Date;
     end: Date;
   };
+  // Raw filters for s3 optimization
+  rawFilters?: {
+    time_range?: {
+      start?: string;
+      end?: string;
+      last?: string;
+    };
+  };
 }
 
 export interface TableColumn {

@@ -549,7 +549,8 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           sources,
           sourceGroup: source_group,
           dataType,
-          limit
+          limit,
+          rawFilters: filters ? { time_range: filters.time_range } : undefined
         };
         
         const resolvedSources = await (client as any).resolveSources(options);
