@@ -182,8 +182,10 @@ export const manualTestCases: ManualTestSuite = {
         resultCount: { max: 10 }
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Database connection failed', level: 'ERROR' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'Authentication failed for user', level: 'ERROR' }
+        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"ERROR","message":"Database connection failed","timestamp":"2024-01-01T10:00:00Z"}', level: 'ERROR' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'ERROR: Authentication failed for user', level: 'ERROR' },
+        { dt: '2024-01-01T10:02:00Z', raw: '[ERROR] Invalid API key provided', level: 'ERROR' },
+        { dt: '2024-01-01T10:03:00Z', raw: 'level=ERROR Failed to process payment', level: 'ERROR' }
       ]
     },
     "filter-info-level": {
@@ -205,8 +207,10 @@ export const manualTestCases: ManualTestSuite = {
         resultCount: { max: 10 }
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Application started successfully', level: 'INFO' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'User logged in successfully', level: 'INFO' }
+        { dt: '2024-01-01T10:00:00Z', raw: '{"level": "INFO", "message": "Application started successfully"}', level: 'INFO' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'INFO: User logged in successfully', level: 'INFO' },
+        { dt: '2024-01-01T10:02:00Z', raw: '\tINFO\tRequest processed successfully', level: 'INFO' },
+        { dt: '2024-01-01T10:03:00Z', raw: 'Cache miss for key user:123\nINFO', level: 'INFO' }
       ]
     },
     "filter-warn-level": {
@@ -228,8 +232,10 @@ export const manualTestCases: ManualTestSuite = {
         resultCount: { max: 10 }
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'High memory usage detected', level: 'WARN' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'Slow database query detected', level: 'WARN' }
+        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"WARN","message":"High memory usage detected","memory_usage":"85%"}', level: 'WARN' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'WARN: Slow database query detected', level: 'WARN' },
+        { dt: '2024-01-01T10:02:00Z', raw: '[WARN] Connection pool nearly exhausted', level: 'WARN' },
+        { dt: '2024-01-01T10:03:00Z', raw: ' WARN Rate limit approaching for API key', level: 'WARN' }
       ]
     }
   },
@@ -392,7 +398,9 @@ export const manualTestCases: ManualTestSuite = {
         notes: "Should combine all filters - recent ERROR logs containing 'error'"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Database error occurred', level: 'ERROR' }
+        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"ERROR","message":"Database error occurred","error_code":"DB001"}', level: 'ERROR' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'ERROR: Connection error to database', level: 'ERROR' },
+        { dt: '2024-01-01T10:02:00Z', raw: '[ERROR] Authentication error for user login', level: 'ERROR' }
       ]
     },
     "level-time-json": {
@@ -424,10 +432,17 @@ export const manualTestCases: ManualTestSuite = {
       mockData: [
         { 
           dt: '2024-01-01T10:00:00Z', 
-          raw: 'Request processed successfully', 
+          raw: '{"level": "INFO", "message": "Request processed successfully", "user": {"id": 123}, "request": {"duration": 250}}', 
           level: 'INFO',
           user: { id: 123 },
           request: { duration: 250 }
+        },
+        { 
+          dt: '2024-01-01T10:01:00Z', 
+          raw: 'INFO: API call completed in 180ms\n{"user":{"id":456},"request":{"duration":180}}', 
+          level: 'INFO',
+          user: { id: 456 },
+          request: { duration: 180 }
         }
       ]
     }

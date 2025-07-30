@@ -91,17 +91,22 @@ export const mockApiSourceGroups: BetterstackApiSourceGroup[] = [
 ]
 
 // Mock logs data - matches ClickHouse schema (dt, raw, level, json, source)
-export const mockLogs = Array.from({ length: 50 }, (_, i) => ({
-  dt: new Date(Date.now() - i * 60000).toISOString(),
-  raw: faker.lorem.sentence(),
-  level: faker.helpers.arrayElement(['INFO', 'WARN', 'ERROR', 'DEBUG']),
-  json: {
-    host: faker.internet.domainName(),
-    severity: faker.helpers.arrayElement(['info', 'warn', 'error', 'debug']),
-    request_id: faker.string.uuid()
-  },
-  source: faker.helpers.arrayElement(['Production API Server', 'Frontend Application'])
-}))
+// Uses JSON format to match our simplified level filtering pattern
+export const mockLogs = Array.from({ length: 50 }, (_, i) => {
+  const level = faker.helpers.arrayElement(['info', 'warn', 'error', 'debug']); // lowercase to match real logs
+  
+  return {
+    dt: new Date(Date.now() - i * 60000).toISOString(),
+    raw: `{"dt":"${new Date(Date.now() - i * 60000).toISOString()}","level":"${level}","message":"${faker.lorem.sentence()}","context":"${faker.lorem.word()}"}`, // JSON format matching real Spark Cron logs
+    level: level,
+    json: {
+      host: faker.internet.domainName(),
+      severity: level,
+      request_id: faker.string.uuid()
+    },
+    source: faker.helpers.arrayElement(['Production API Server', 'Frontend Application'])
+  };
+})
 
 // Mock ClickHouse query response
 export const mockClickHouseResponse = {

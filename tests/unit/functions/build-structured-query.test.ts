@@ -90,8 +90,8 @@ describe('buildStructuredQuery Function', () => {
 
   })
 
-  describe('Level Filtering (JSON-based)', () => {
-    it('should generate level filter using getJSON', async () => {
+  describe('Level Filtering (Pattern Matching)', () => {
+    it('should generate level filter using pattern matching', async () => {
       const params: StructuredQueryParams = {
         filters: {
           level: 'ERROR'
@@ -100,7 +100,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE lower(getJSON(raw, 'level')) = lower('ERROR') ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle all valid log levels', async () => {
@@ -113,7 +113,7 @@ describe('buildStructuredQuery Function', () => {
         }
 
         const query = await buildStructuredQuery(params)
-        expect(query).toBe(`SELECT dt, raw FROM logs WHERE lower(getJSON(raw, 'level')) = lower('${level}') ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`)
+        expect(query).toBe(`SELECT dt, raw FROM logs WHERE ilike(raw, '%\"level\":\"${level.toLowerCase()}\"%') ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`)
       }
     })
   })
@@ -251,7 +251,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%api%') AND lower(getJSON(raw, 'level')) = lower('ERROR') AND dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%api%') AND ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle all filter types together', async () => {
@@ -267,7 +267,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%payment%') AND lower(getJSON(raw, 'level')) = lower('INFO') AND dt >= now() - INTERVAL 2 DAY ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%payment%') AND ilike(raw, '%\"level\":\"info\"%') AND dt >= now() - INTERVAL 2 DAY ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle tight time window debugging with error filtering', async () => {
@@ -284,7 +284,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%database connection%') AND lower(getJSON(raw, 'level')) = lower('ERROR') AND dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%database connection%') AND ilike(raw, '%\"level\":\"error\"%') AND dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
   })
 
@@ -306,7 +306,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method, getJSON(raw, 'response.status_code') as status FROM logs WHERE lower(getJSON(raw, 'level')) = lower('ERROR') AND dt >= now() - INTERVAL 4 HOUR ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method, getJSON(raw, 'response.status_code') as status FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 4 HOUR ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle no filters (fields and ordering only)', async () => {
@@ -385,7 +385,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE _row_type = 1 AND ilike(raw, '%error%') AND lower(getJSON(raw, 'level')) = lower('ERROR') ORDER BY dt DESC LIMIT 20 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE _row_type = 1 AND ilike(raw, '%error%') AND ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 20 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should not add _row_type filter for recent data', async () => {
@@ -573,7 +573,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE _row_type = 1 AND lower(getJSON(raw, 'level')) = lower('ERROR') ORDER BY dt DESC LIMIT 50 FORMAT CSV")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE _row_type = 1 AND ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 50 FORMAT CSV")
     })
   })
 })

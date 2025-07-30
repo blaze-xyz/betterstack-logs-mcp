@@ -83,13 +83,13 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
         whereConditions.push(`ilike(raw, '%${escaped}%')`);
       }
       
-      // Log level filtering (using getJSON)
+      // Log level filtering (using pattern matching)
       if (filters.level) {
         const validLevels = ['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL'];
         if (!validLevels.includes(filters.level)) {
           throw new Error(`Invalid log level: ${filters.level}. Must be one of: ${validLevels.join(', ')}`);
         }
-        whereConditions.push(`lower(getJSON(raw, 'level')) = lower('${filters.level}')`);
+        whereConditions.push(buildLevelFilter(filters.level));
       }
       
       // Time range filtering
@@ -153,6 +153,18 @@ export function validateQueryParams(params: StructuredQueryParams): void {
  */
 export function sanitizeSqlString(input: string): string {
   return input.replace(/'/g, "''");
+}
+
+/**
+ * Builds a level filter using simple pattern matching
+ * Uses the proven pattern that works in production: "level":"value" 
+ */
+export function buildLevelFilter(level: string): string {
+  // Sanitize the level to prevent SQL injection
+  const sanitizedLevel = sanitizeSqlString(level);
+  
+  // Use the simple JSON pattern that works - lowercase level value as seen in actual logs
+  return `ilike(raw, '%"level":"${sanitizedLevel.toLowerCase()}"%')`;
 }
 
 
@@ -480,8 +492,8 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         // RAW LOG FILTERING (most common use case)
         raw_contains: z.string().optional().describe("Case-insensitive substring search in raw field"),
         
-        // LOG LEVEL FILTERING (shorthand for JSON level field)
-        level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level (uses getJSON(raw, 'level'))"),
+        // LOG LEVEL FILTERING (using pattern matching)
+        level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level (uses pattern matching)"),
         
         // TIME RANGE FILTERING
         time_range: z.object({
