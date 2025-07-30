@@ -57,9 +57,10 @@ This compiles TypeScript to JavaScript in the `dist/` directory. Claude Desktop 
 
 1. Make changes to TypeScript files in `src/`
 2. Run `npm run build` to compile changes
-3. Test the changes in Claude Desktop or other MCP clients
-4. Debug using logs in `mcp-debug.log` (written to project root)
-5. If stuck, consult BetterStack API documentation (@context/betterstack-api.md) for endpoint details and refresh your understanding of API constraints
-6. Repeat as needed
+3. **IMPORTANT**: Ask the user to restart Claude to get access to the latest build of the MCP server
+4. Test the changes in Claude Desktop or other MCP clients
+5. Debug using logs in `mcp-debug.log` (written to project root)
+6. If stuck, consult BetterStack API documentation (@context/betterstack-api.md) for endpoint details and refresh your understanding of API constraints
+7. Repeat as needed
 
-Without rebuilding, your changes won't be reflected in the running MCP server.
+Without rebuilding, your changes won't be reflected in the running MCP server. **Critical**: Claude must be restarted after each rebuild to access the updated MCP server functionality.
