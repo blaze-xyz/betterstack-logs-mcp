@@ -35,7 +35,7 @@ describe('buildMultiSourceQuery Function', () => {
       const baseQuery = 'SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 10'
       const result = client.buildMultiSourceQuery(baseQuery, singleSource, 'union')
       
-      const expectedTableFunction = '(SELECT dt, raw FROM remote(t298009_prod_api_logs) UNION ALL SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1)'
+      const expectedTableFunction = '(SELECT dt, raw FROM remote(t298009_prod_api_logs) UNION DISTINCT SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1)'
       const expectedQuery = `SELECT dt, raw FROM ${expectedTableFunction} WHERE dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 10`
       
       expect(result).toBe(expectedQuery)
@@ -53,7 +53,7 @@ describe('buildMultiSourceQuery Function', () => {
       const baseQuery = 'SELECT dt, raw FROM logs WHERE dt >= "2024-01-01" LIMIT 100'
       const result = client.buildMultiSourceQuery(baseQuery, singleSource, 'historical')
       
-      const expectedQuery = 'SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3, filename=\'{{_s3_glob_interpolate}}\') WHERE dt >= "2024-01-01" LIMIT 100'
+      const expectedQuery = 'SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3, filename=\'{{_s3_glob_interpolate}}\') WHERE _row_type = 1 AND dt >= "2024-01-01" LIMIT 100'
       expect(result).toBe(expectedQuery)
     })
 
@@ -71,8 +71,8 @@ describe('buildMultiSourceQuery Function', () => {
       const baseQuery = 'SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 2 HOURS ORDER BY dt DESC LIMIT 25'
       const result = client.buildMultiSourceQuery(baseQuery, mockSources, 'union')
       
-      // Should generate unified subquery following BetterStack's documented structure
-      const expectedSubquery = `(SELECT 'Production API Server' as source, dt, raw FROM remote(t298009_prod_api_logs) UNION ALL SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1 UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM remote(t298009_frontend_app_logs) UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t298009_frontend_app_s3) WHERE _row_type = 1)`
+      // Should generate unified subquery with UNION DISTINCT for same-source tables and UNION ALL between different sources
+      const expectedSubquery = `((SELECT 'Production API Server' as source, dt, raw FROM remote(t298009_prod_api_logs) UNION DISTINCT SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t298009_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t298009_frontend_app_s3) WHERE _row_type = 1))`
       const expectedQuery = `SELECT source, dt, raw FROM ${expectedSubquery} WHERE dt >= now() - INTERVAL 2 HOURS ORDER BY dt DESC LIMIT 25`
       
       expect(result).toBe(expectedQuery)
@@ -131,7 +131,7 @@ describe('buildMultiSourceQuery Function', () => {
       const baseQuery = 'SELECT dt, raw FROM union_subquery WHERE level = "INFO"'
       const result = client.buildMultiSourceQuery(baseQuery, singleSource, 'union')
       
-      const expectedTableFunction = '(SELECT dt, raw FROM remote(t298009_prod_api_logs) UNION ALL SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1)'
+      const expectedTableFunction = '(SELECT dt, raw FROM remote(t298009_prod_api_logs) UNION DISTINCT SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1)'
       const expectedQuery = `SELECT dt, raw FROM ${expectedTableFunction} WHERE level = "INFO"`
       
       expect(result).toBe(expectedQuery)
@@ -189,7 +189,7 @@ describe('buildMultiSourceQuery Function', () => {
       
       const result = client.buildMultiSourceQuery(baseQuery, singleSource, 'union')
       
-      const expectedTableFunction = '(SELECT dt, raw FROM remote(t298009_prod_api_logs) UNION ALL SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1)'
+      const expectedTableFunction = '(SELECT dt, raw FROM remote(t298009_prod_api_logs) UNION DISTINCT SELECT dt, raw FROM s3Cluster(primary, t298009_prod_api_s3) WHERE _row_type = 1)'
       
       expect(result).toContain(expectedTableFunction)
       expect(result).toContain('WHERE dt >= now() - INTERVAL 6 HOURS')
@@ -223,6 +223,25 @@ describe('buildMultiSourceQuery Function', () => {
       expect(result).toContain('UNION ALL')
       // Should have unified structure
       expect(result).toMatch(/^SELECT source, dt, raw FROM \(/)
+    })
+
+    it('should not duplicate _row_type filter in multi-source historical queries', () => {
+      // This test verifies that _row_type = 1 from buildStructuredQuery does not appear in outer WHERE clause
+      // when using real-world structured queries (not manually constructed ones)
+      
+      // Use a query that would be generated by buildStructuredQuery (without _row_type = 1)
+      const baseQuery = `SELECT dt, raw FROM logs WHERE ilike(raw, '%error%') AND dt >= parseDateTime64BestEffort('2025-07-15T08:00:00Z') ORDER BY dt DESC LIMIT 150`
+      const result = client.buildMultiSourceQuery(baseQuery, mockSources, 'historical')
+      
+      // Expected full query structure - _row_type = 1 should only appear in s3Cluster subqueries
+      const expectedSubquery = `(SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t298009_prod_api_s3, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1 UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t298009_frontend_app_s3, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1)`
+      const expectedQuery = `SELECT source, dt, raw FROM ${expectedSubquery} WHERE ilike(raw, '%error%') AND dt >= parseDateTime64BestEffort('2025-07-15T08:00:00Z') ORDER BY dt DESC LIMIT 150`
+      
+      expect(result).toBe(expectedQuery)
+      
+      // Verify _row_type = 1 only appears in s3Cluster subqueries (2 occurrences total)
+      const totalRowTypeCount = (result.match(/_row_type = 1/g) || []).length
+      expect(totalRowTypeCount).toBe(2)
     })
   })
 

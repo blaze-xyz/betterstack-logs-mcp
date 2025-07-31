@@ -46,10 +46,8 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
   // 4. Build WHERE clauses
   const whereConditions: string[] = [];
   
-  // Add required filter for historical data
-  if (dataType === 'historical') {
-    whereConditions.push('_row_type = 1');
-  }
+  // Note: _row_type = 1 filter is handled at the table level (in s3Cluster queries)
+  // and should not be added to the outer WHERE clause for multi-source queries
   
   if (filters) {
     try {

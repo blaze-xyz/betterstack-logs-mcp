@@ -467,17 +467,17 @@ describe('buildStructuredQuery Function', () => {
   })
 
   describe('Data Type Handling', () => {
-    it('should add _row_type filter for historical data', async () => {
+    it('should not add _row_type filter for historical data (handled at table level)', async () => {
       const params: StructuredQueryParams = {
         dataType: 'historical',
         limit: 10
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs WHERE _row_type = 1 ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
     })
 
-    it('should combine _row_type filter with other filters for historical data', async () => {
+    it('should not add _row_type filter when combining with other filters for historical data', async () => {
       const params: StructuredQueryParams = {
         dataType: 'historical',
         filters: {
@@ -488,7 +488,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE _row_type = 1 AND ilike(raw, '%error%') AND ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 20 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%error%') AND ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 20 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should not add _row_type filter for recent data', async () => {
@@ -670,7 +670,7 @@ describe('buildStructuredQuery Function', () => {
       expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%error%') AND dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 25 FORMAT Pretty")
     })
 
-    it('should work with historical data type and CSV format', async () => {
+    it('should work with historical data type and CSV format (no _row_type in outer query)', async () => {
       const params: StructuredQueryParams = {
         dataType: 'historical',
         filters: {
@@ -681,7 +681,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE _row_type = 1 AND ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 50 FORMAT CSV")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 50 FORMAT CSV")
     })
   })
 })

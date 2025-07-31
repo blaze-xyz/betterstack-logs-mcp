@@ -415,6 +415,133 @@ export const manualTestCases: ManualTestSuite = {
         { dt: '2024-01-01T10:30:00Z', raw: 'Recent Spark production log' },
         { dt: '2024-01-01T10:45:00Z', raw: 'Recent App production log' }
       ]
+    },
+    "multi-source-historical-july": {
+      id: "3.4",
+      description: "Historical multi-source query for July 15-16, 2025 (pure historical data)",
+      category: "Multi-Source Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: "2025-07-15T08:00:00Z",
+                end_datetime: "2025-07-16T20:00:00Z"
+              }
+            },
+            raw_contains: "production",
+            level: "ERROR"
+          },
+          sources: ["1386515", "1442440"],
+          limit: 150
+        }
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "query_logs",
+          arguments: {
+            filters: {
+              time_filter: {
+                custom: {
+                  start_datetime: "2025-07-15T08:00:00Z",
+                  end_datetime: "2025-07-16T20:00:00Z"
+                }
+              },
+              raw_contains: "production",
+              level: "ERROR"
+            },
+            sources: ["1386515", "1442440"],
+            limit: 150
+          }
+        },
+        id: 31
+      },
+      expected: {
+        shouldContain: [
+          "Query Results",
+          "s3Cluster(primary,",
+          "parseDateTime64BestEffort('2025-07-15T08:00:00Z')",
+          "parseDateTime64BestEffort('2025-07-16T20:00:00Z')",
+          "ilike(raw, '%production%')",
+          "ilike(raw, '%\"level\":\"error\"%')"
+        ],
+        shouldNotContain: ["remote("],
+        resultCount: { max: 150 },
+        notes: "Should use pure historical (s3Cluster) queries only for July 15-16, 2025 data, no remote() tables"
+      },
+      mockData: [
+        { dt: '2025-07-15T10:30:00Z', raw: 'ERROR: Production database connection failed' },
+        { dt: '2025-07-15T14:45:00Z', raw: 'ERROR: Production API timeout in authentication service' },
+        { dt: '2025-07-16T18:15:00Z', raw: 'ERROR: Production cache service unavailable' }
+      ]
+    },
+    "complex-multi-filter-historical": {
+      id: "3.5",
+      description: "Complex multi-filter historical query across three sources (July 15, 2025)",
+      category: "Multi-Source Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: "2025-07-15T12:30:00Z",
+                end_datetime: "2025-07-15T18:45:00Z"
+              }
+            },
+            raw_contains: "timeout",
+            level: "WARN"
+          },
+          sources: ["1386515", "1442440", "1442441"],
+          limit: 200
+        }
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "query_logs",
+          arguments: {
+            filters: {
+              time_filter: {
+                custom: {
+                  start_datetime: "2025-07-15T12:30:00Z",
+                  end_datetime: "2025-07-15T18:45:00Z"
+                }
+              },
+              raw_contains: "timeout",
+              level: "WARN"
+            },
+            sources: ["1386515", "1442440", "1442441"],
+            limit: 200
+          }
+        },
+        id: 32
+      },
+      expected: {
+        shouldContain: [
+          "Query Results",
+          "Sources queried:",
+          "s3Cluster(primary,",
+          "parseDateTime64BestEffort('2025-07-15T12:30:00Z')",
+          "parseDateTime64BestEffort('2025-07-15T18:45:00Z')",
+          "ilike(raw, '%timeout%')",
+          "ilike(raw, '%\"level\":\"warn\"%')",
+          "range-from=1721044200000",
+          "range-to=1721066700000"
+        ],
+        shouldNotContain: ["remote("],
+        resultCount: { max: 200 },
+        notes: "Should use historical s3Cluster queries across all three sources with complex filtering and URL optimization parameters"
+      },
+      mockData: [
+        { dt: '2025-07-15T13:00:00Z', raw: 'WARN: Database connection timeout detected in production environment' },
+        { dt: '2025-07-15T15:30:00Z', raw: 'WARN: API request timeout - external service slow to respond' },
+        { dt: '2025-07-15T17:45:00Z', raw: 'WARN: Cache timeout occurred during high traffic period' }
+      ]
     }
   },
 

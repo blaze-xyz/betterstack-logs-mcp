@@ -559,10 +559,30 @@ export class BetterstackClient {
         });
       }
 
-      const finalQuery = baseQuery.replace(
+      let finalQuery = baseQuery.replace(
         /FROM\s+(logs|metrics|union_subquery)\b/gi,
         `FROM ${tableFunction}`
       );
+      
+      // For historical queries, add _row_type = 1 filter to the WHERE clause
+      if (dataType === "historical") {
+        if (finalQuery.toLowerCase().includes('where')) {
+          // Query already has WHERE clause, add AND _row_type = 1
+          finalQuery = finalQuery.replace(/WHERE/i, 'WHERE _row_type = 1 AND');
+        } else {
+          // No WHERE clause, add it before ORDER BY or at the end
+          if (finalQuery.toLowerCase().includes('order by')) {
+            finalQuery = finalQuery.replace(/ORDER BY/i, 'WHERE _row_type = 1 ORDER BY');
+          } else {
+            // Insert before LIMIT or at the end
+            if (finalQuery.toLowerCase().includes('limit')) {
+              finalQuery = finalQuery.replace(/LIMIT/i, 'WHERE _row_type = 1 LIMIT');
+            } else {
+              finalQuery += ' WHERE _row_type = 1';
+            }
+          }
+        }
+      }
       logToFile("INFO", "Generated single-source query", {
         tableFunction,
         finalQuery,
@@ -650,6 +670,7 @@ export class BetterstackClient {
         'SELECT source, dt, raw'
       );
     }
+
 
     logToFile("INFO", "Generated multi-source unified UNION query", {
       sourceCount: sources.length,
