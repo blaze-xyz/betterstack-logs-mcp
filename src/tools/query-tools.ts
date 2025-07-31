@@ -518,6 +518,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           `Total rows: ${result.meta?.total_rows || result.data.length}`,
           `Executed SQL: \`${result.meta?.executed_sql || query}\``,
           `Request URL: ${result.meta?.request_url || 'unknown'}`,
+          `API used: ${result.meta?.api_used || 'clickhouse'}`,
           '',
           '**Data:**'
         ];

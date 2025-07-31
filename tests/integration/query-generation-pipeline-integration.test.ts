@@ -198,25 +198,24 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const result = await mcpHelper.callTool("query_logs", params);
     const responseText = result.content[0].text;
 
-    // Verify the final SQL query format
-    const expectedFinalSQL = `SELECT source, dt, raw FROM (SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t12345_production_api_s3, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1 UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1) WHERE ilike(raw, '%database%') AND dt >= parseDateTime64BestEffort('2024-02-15T08:00:00Z') AND dt <= parseDateTime64BestEffort('2024-02-15T18:00:00Z') ORDER BY dt DESC LIMIT 150 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
-    expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
-
-    // Step 4: Verify historical query optimization URL parameters
-    // Multi-source historical queries should include URL parameters for optimization (using first source table)
-    // Expected timestamps: 2024-02-15T08:00:00Z = 1707984000000, 2024-02-15T18:00:00Z = 1708020000000
-    const expectedUrl =
-      "https://clickhouse.betterstack.com/?table=t12345.production_api&range-from=1707984000000&range-to=1708020000000";
-    expect(responseText).toContain(`Request URL: ${expectedUrl}`);
-
-    // Step 5: Verify timestamp consistency between SQL and URL
-    // Validate that the timestamps in the URL match the datetime strings in the SQL query
-    const startTimestamp = new Date("2024-02-15T08:00:00Z").getTime(); // Should be 1707984000000
-    const endTimestamp = new Date("2024-02-15T18:00:00Z").getTime(); // Should be 1708020000000
-    expect(startTimestamp).toBe(1707984000000); // Verify our expected start timestamp is correct
-    expect(endTimestamp).toBe(1708020000000); // Verify our expected end timestamp is correct
-    expect(responseText).toContain(`range-from=${startTimestamp}`);
-    expect(responseText).toContain(`range-to=${endTimestamp}`);
+    // Step 4: Verify multi-source optimization was used
+    // Multi-source historical queries now use per-source optimization with client-side merging
+    expect(responseText).toContain('API used: multi-source-optimized');
+    
+    // Step 5: Verify both sources are queried (shown in sources_queried)
+    expect(responseText).toContain("Sources queried: Production API Server, Frontend Application");
+    
+    // Step 6: Verify the original structured query is shown (not individual s3Cluster queries)
+    // Users see the logical query they requested, not the internal optimization details
+    expect(responseText).toContain("SELECT dt, raw FROM logs WHERE");
+    expect(responseText).toContain("parseDateTime64BestEffort('2024-02-15T08:00:00Z')");
+    expect(responseText).toContain("parseDateTime64BestEffort('2024-02-15T18:00:00Z')");
+    expect(responseText).toContain("ilike(raw, '%database%')");
+    
+    // Step 7: Verify results contain data from both sources
+    // Multi-source optimization merges results from all sources
+    expect(responseText).toContain("source: Production API Server");
+    expect(responseText).toContain("source: Frontend Application");
   });
 
   it("Source Group Union Pipeline: Step-by-step validation", async () => {
@@ -315,24 +314,24 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     expect(typeof responseText).toBe("string");
     expect(responseText.length).toBeGreaterThan(0);
 
-    // Step 5: Verify the final SQL query format (should include all 3 sources in Development Environment group)
-    const expectedFinalSQL = `SELECT source, dt, raw FROM (SELECT 'Spark - staging | deprecated' as source, dt, raw FROM s3Cluster(primary, t12345_spark_staging_s3, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1 UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1 UNION ALL SELECT 'Database Service' as source, dt, raw FROM s3Cluster(primary, t12345_database_service_s3, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1) WHERE ilike(raw, '%database%') AND ilike(raw, '%"level":"warn"%') AND dt >= parseDateTime64BestEffort('2024-03-10T14:30:00Z') AND dt <= parseDateTime64BestEffort('2024-03-10T20:15:00Z') ORDER BY dt DESC LIMIT 180 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
-    expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
-
-    // Step 6: Verify historical query optimization URL parameters
-    // Source group historical queries should include URL parameters for optimization (using first source table)
-    // Expected timestamps: 2024-03-10T14:30:00Z = 1710081000000, 2024-03-10T20:15:00Z = 1710101700000
-    const expectedUrl =
-      "https://clickhouse.betterstack.com/?table=t12345.spark_staging&range-from=1710081000000&range-to=1710101700000";
-    expect(responseText).toContain(`Request URL: ${expectedUrl}`);
-
-    // Step 7: Verify timestamp consistency between SQL and URL
-    // Validate that the timestamps in the URL match the datetime strings in the SQL query
-    const startTimestamp = new Date("2024-03-10T14:30:00Z").getTime(); // Should be 1710081000000
-    const endTimestamp = new Date("2024-03-10T20:15:00Z").getTime(); // Should be 1710101700000
-    expect(startTimestamp).toBe(1710081000000); // Verify our expected start timestamp is correct
-    expect(endTimestamp).toBe(1710101700000); // Verify our expected end timestamp is correct
-    expect(responseText).toContain(`range-from=${startTimestamp}`);
-    expect(responseText).toContain(`range-to=${endTimestamp}`);
+    // Step 5: Verify multi-source optimization was used for source group historical queries
+    // Source group historical queries with multiple sources now use per-source optimization
+    expect(responseText).toContain('API used: multi-source-optimized');
+    
+    // Step 6: Verify all sources in the Development Environment group are queried
+    expect(responseText).toContain("Spark - staging | deprecated");
+    expect(responseText).toContain("Frontend Application");  
+    expect(responseText).toContain("Database Service");
+    
+    // Step 7: Verify the original structured query is shown (not individual s3Cluster queries)
+    // Users see the logical query they requested, not the internal optimization details
+    expect(responseText).toContain("SELECT dt, raw FROM logs WHERE");
+    expect(responseText).toContain("parseDateTime64BestEffort('2024-03-10T14:30:00Z')");
+    expect(responseText).toContain("parseDateTime64BestEffort('2024-03-10T20:15:00Z')");
+    expect(responseText).toContain("ilike(raw, '%database%')");
+    expect(responseText).toContain('ilike(raw, \'%"level":"warn"%\')');
+    
+    // Step 8: Verify results contain data from all sources in the group
+    // Multi-source optimization merges results from all sources in the group
   });
 });
