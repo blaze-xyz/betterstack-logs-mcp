@@ -754,6 +754,17 @@ export class BetterstackClient {
 
     logToFile("INFO", "Source validation results", sourceDetails);
 
+    // Route to appropriate execution strategy based on query characteristics
+    // Multi-source historical queries use per-source optimization with merging
+    if (dataType === "historical" && sources.length > 1 && options.rawFilters) {
+      logToFile("INFO", "Routing to multi-source historical query optimization", {
+        sourcesCount: sources.length,
+        sourceNames: sources.map(s => s.name),
+      });
+      
+      return await this.executeMultiSourceHistoricalQuery(query, sources, options);
+    }
+
     let finalQuery = query;
 
     // If query doesn't specify a table function, build multi-source query
@@ -785,16 +796,6 @@ export class BetterstackClient {
     }
 
     try {
-      // Route to appropriate execution strategy based on query characteristics
-      // Multi-source historical queries use per-source optimization with merging
-      if (dataType === "historical" && sources.length > 1 && options.rawFilters) {
-        logToFile("INFO", "Routing to multi-source historical query optimization", {
-          sourcesCount: sources.length,
-          sourceNames: sources.map(s => s.name),
-        });
-        
-        return await this.executeMultiSourceHistoricalQuery(originalQuery, sources, options);
-      }
 
       // Extract time range parameters for s3 optimization on historical queries
       let requestUrl = "/";
@@ -1210,8 +1211,10 @@ export class BetterstackClient {
 
     // Execute queries in parallel
     const queryPromises = sourceQueries.map(async ({ source, query: sourceQuery, timeRangeParams }) => {
+      let requestUrl = "/";
+      let finalQuery = sourceQuery;
+      
       try {
-        let requestUrl = "/";
         if (timeRangeParams) {
           const urlParams = new URLSearchParams();
           if (timeRangeParams.table) {
@@ -1227,22 +1230,40 @@ export class BetterstackClient {
         }
 
         // Apply JSON format for API call
-        let finalQuery = sourceQuery;
         if (!finalQuery.toLowerCase().includes("format")) {
           finalQuery += " FORMAT JSON";
         } else {
           finalQuery = finalQuery.replace(/\s+FORMAT\s+\w+(\s|$)/gi, ' FORMAT JSON');
         }
 
+        const fullRequestUrl = this.config.clickhouseQueryEndpoint + requestUrl;
+        
         logToFile("INFO", "Making optimized request for source", {
           sourceName: source.name,
           requestUrl,
+          fullRequestUrl,
           queryLength: finalQuery.length,
+        });
+
+        logToFile("DEBUG", "Individual source SQL query details", {
+          sourceName: source.name,
+          fullURL: fullRequestUrl,
+          sqlQuery: finalQuery,
+          tableFunction: sourceQuery.includes('s3Cluster') ? 
+            sourceQuery.match(/s3Cluster\([^)]+\)/)?.[0] : 'none',
         });
 
         const response = await BetterstackClient.rateLimiter(() =>
           this.queryClient.post(requestUrl, finalQuery)
         );
+
+        logToFile("DEBUG", "Individual source query response", {
+          sourceName: source.name,
+          responseStatus: response.status,
+          responseDataKeys: Object.keys(response.data || {}),
+          dataRowCount: response.data?.data?.length || 0,
+          firstFewRows: response.data?.data?.slice(0, 2) || [],
+        });
 
         return {
           source: source.name,
@@ -1252,7 +1273,14 @@ export class BetterstackClient {
       } catch (error) {
         logToFile("ERROR", "Failed to query source", {
           sourceName: source.name,
+          requestUrl,
+          fullRequestUrl: this.config.clickhouseQueryEndpoint + requestUrl,
+          sqlQuery: finalQuery,
           error: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          httpStatus: (error as any)?.response?.status,
+          httpStatusText: (error as any)?.response?.statusText,
+          responseData: (error as any)?.response?.data,
         });
 
         return {

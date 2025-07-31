@@ -418,7 +418,7 @@ export const manualTestCases: ManualTestSuite = {
     },
     "multi-source-historical-july": {
       id: "3.4",
-      description: "Historical multi-source query for July 15-16, 2025 (pure historical data)",
+      description: "Historical multi-source query for July 25-26, 2025 (pure historical data)",
       category: "Multi-Source Log Querying Tests",
       payload: {
         name: "query_logs",
@@ -426,8 +426,8 @@ export const manualTestCases: ManualTestSuite = {
           filters: {
             time_filter: {
               custom: {
-                start_datetime: "2025-07-15T08:00:00Z",
-                end_datetime: "2025-07-16T20:00:00Z"
+                start_datetime: "2025-07-25T08:00:00Z",
+                end_datetime: "2025-07-26T20:00:00Z"
               }
             },
             raw_contains: "production",
@@ -446,8 +446,8 @@ export const manualTestCases: ManualTestSuite = {
             filters: {
               time_filter: {
                 custom: {
-                  start_datetime: "2025-07-15T08:00:00Z",
-                  end_datetime: "2025-07-16T20:00:00Z"
+                  start_datetime: "2025-07-25T08:00:00Z",
+                  end_datetime: "2025-07-26T20:00:00Z"
                 }
               },
               raw_contains: "production",
@@ -463,19 +463,19 @@ export const manualTestCases: ManualTestSuite = {
         shouldContain: [
           "Query Results",
           "s3Cluster(primary,",
-          "parseDateTime64BestEffort('2025-07-15T08:00:00Z')",
-          "parseDateTime64BestEffort('2025-07-16T20:00:00Z')",
+          "parseDateTime64BestEffort('2025-07-25T08:00:00Z')",
+          "parseDateTime64BestEffort('2025-07-26T20:00:00Z')",
           "ilike(raw, '%production%')",
           "ilike(raw, '%\"level\":\"error\"%')"
         ],
         shouldNotContain: ["remote("],
         resultCount: { max: 150 },
-        notes: "Should use pure historical (s3Cluster) queries only for July 15-16, 2025 data, no remote() tables"
+        notes: "Should use pure historical (s3Cluster) queries only for July 25-26, 2025 data, no remote() tables"
       },
       mockData: [
-        { dt: '2025-07-15T10:30:00Z', raw: 'ERROR: Production database connection failed' },
-        { dt: '2025-07-15T14:45:00Z', raw: 'ERROR: Production API timeout in authentication service' },
-        { dt: '2025-07-16T18:15:00Z', raw: 'ERROR: Production cache service unavailable' }
+        { dt: '2025-07-25T10:30:00Z', raw: 'ERROR: Production database connection failed' },
+        { dt: '2025-07-25T14:45:00Z', raw: 'ERROR: Production API timeout in authentication service' },
+        { dt: '2025-07-26T18:15:00Z', raw: 'ERROR: Production cache service unavailable' }
       ]
     },
     "complex-multi-filter-historical": {
