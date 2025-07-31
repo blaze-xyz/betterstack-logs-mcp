@@ -52,7 +52,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const responseText = result.content[0].text;
 
     // Verify the final SQL query format
-    const expectedFinalSQL = `SELECT dt, raw FROM (SELECT dt, raw FROM remote(t12345_production_api_logs) UNION ALL SELECT dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) WHERE ilike(raw, '%error%') AND ilike(raw, '%"level":"warn"%') AND dt >= now() - INTERVAL 3 HOUR ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedFinalSQL = `SELECT dt, raw FROM (SELECT dt, raw FROM remote(t12345_production_api_logs) UNION DISTINCT SELECT dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) WHERE ilike(raw, '%error%') AND ilike(raw, '%"level":"warn"%') AND dt >= now() - INTERVAL 3 HOUR ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
 
     // Step 4: Verify union query URL (no optimization parameters for union queries)
@@ -150,7 +150,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const responseText = result.content[0].text;
 
     // Verify the final SQL query format
-    const expectedFinalSQL = `SELECT source, dt, raw FROM (SELECT 'Production API Server' as source, dt, raw FROM remote(t12345_production_api_logs) UNION ALL SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1 UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1) WHERE ilike(raw, '%api%') AND ilike(raw, '%"level":"error"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 75 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Production API Server' as source, dt, raw FROM remote(t12345_production_api_logs) UNION DISTINCT SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1)) WHERE ilike(raw, '%api%') AND ilike(raw, '%"level":"error"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 75 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
 
     // Step 4: Verify union query URL (no optimization parameters for union queries)
@@ -243,7 +243,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     expect(responseText.length).toBeGreaterThan(0);
 
     // Step 3: Verify the final SQL query format (should include all 3 sources in Development Environment group)
-    const expectedFinalSQL = `SELECT source, dt, raw FROM (SELECT 'Spark - staging | deprecated' as source, dt, raw FROM remote(t12345_spark_staging_logs) UNION ALL SELECT 'Spark - staging | deprecated' as source, dt, raw FROM s3Cluster(primary, t12345_spark_staging_s3) WHERE _row_type = 1 UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION ALL SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1 UNION ALL SELECT 'Database Service' as source, dt, raw FROM remote(t12345_database_service_logs) UNION ALL SELECT 'Database Service' as source, dt, raw FROM s3Cluster(primary, t12345_database_service_s3) WHERE _row_type = 1) WHERE ilike(raw, '%service%') AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Spark - staging | deprecated' as source, dt, raw FROM remote(t12345_spark_staging_logs) UNION DISTINCT SELECT 'Spark - staging | deprecated' as source, dt, raw FROM s3Cluster(primary, t12345_spark_staging_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Database Service' as source, dt, raw FROM remote(t12345_database_service_logs) UNION DISTINCT SELECT 'Database Service' as source, dt, raw FROM s3Cluster(primary, t12345_database_service_s3) WHERE _row_type = 1)) WHERE ilike(raw, '%service%') AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
 
     // Step 4: Verify union query URL (no optimization parameters for union queries)

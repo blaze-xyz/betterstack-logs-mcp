@@ -534,10 +534,10 @@ export class BetterstackClient {
           tableFunction,
         });
       } else if (dataType === "union") {
-        // Union query: combine remote and s3Cluster tables
+        // Union query: combine remote and s3Cluster tables using UNION DISTINCT to prevent duplicates
         const logsTableName = `t${teamId}_${tableName}_logs`;
         const s3TableName = `t${teamId}_${tableName}_s3`;
-        tableFunction = `(SELECT dt, raw FROM remote(${logsTableName}) UNION ALL SELECT dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1)`;
+        tableFunction = `(SELECT dt, raw FROM remote(${logsTableName}) UNION DISTINCT SELECT dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1)`;
         logToFile("DEBUG", "Single source union query", {
           source: source.name,
           teamId,
@@ -607,11 +607,11 @@ export class BetterstackClient {
           includesSourceId: needsSourceId,
         });
       } else if (dataType === "union") {
-        // Union data type: include both remote and s3Cluster for each source
+        // Union data type: group remote and s3Cluster for same source with UNION DISTINCT to prevent duplicates
         const logsTableName = `t${teamId}_${tableName}_logs`;
         const s3TableName = `t${teamId}_${tableName}_s3`;
-        tableReferences.push(`SELECT ${sourceId}dt, raw FROM remote(${logsTableName})`);
-        tableReferences.push(`SELECT ${sourceId}dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1`);
+        const sourceUnionGroup = `(SELECT ${sourceId}dt, raw FROM remote(${logsTableName}) UNION DISTINCT SELECT ${sourceId}dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1)`;
+        tableReferences.push(sourceUnionGroup);
         logToFile("DEBUG", `Multi-source union tables ${index + 1}`, {
           source: source.name,
           teamId,
