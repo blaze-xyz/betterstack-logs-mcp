@@ -9,8 +9,14 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./"
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules"]
+  "include": [
+    "src/**/*", 
+    "scripts/run-manual-tests.ts",
+    "scripts/run-real-mcp-tests.ts",
+    "tests/helpers/**/*",
+    "tests/manual/real-mcp-test-runner.ts"
+  ],
+  "exclude": ["node_modules", "dist", "tests/unit/**/*", "tests/integration/**/*", "tests/e2e/**/*", "tests/performance/**/*"]
 }

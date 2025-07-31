@@ -1,11 +1,16 @@
+/**
+ * Test Setup for Manual Tests - Initialize MSW server and global environment
+ */
+import { setupServer } from 'msw/node'
 import { http, HttpResponse } from 'msw'
 import { 
   mockApiSources, 
   mockApiSourceGroups, 
   mockClickHouseResponse
-} from './betterstack-responses.js'
+} from '../__mocks__/betterstack-responses.js'
 
-export const handlers = [
+// Setup MSW server for API mocking - copying from handlers.ts but local
+const server = setupServer(
   // Betterstack Telemetry API - List sources
   http.get('https://telemetry.betterstack.com/api/v1/sources', ({ request }) => {
     const url = new URL(request.url)
@@ -40,7 +45,7 @@ export const handlers = [
     })
   }),
 
-  // ClickHouse query endpoint - match the actual endpoint
+  // ClickHouse query endpoint
   http.post('https://clickhouse.betterstack.com/', async ({ request }) => {
     const query = await request.text()
     
@@ -49,7 +54,7 @@ export const handlers = [
       return HttpResponse.json({ data: [{ "1": 1 }] })
     }
     
-    // Handle DESCRIBE queries for table schema validation (includes remote() function)
+    // Handle DESCRIBE queries for table schema validation
     if (query.includes('DESCRIBE TABLE remote(') || query.includes('DESCRIBE remote(')) {
       return HttpResponse.json({
         data: [
@@ -64,37 +69,28 @@ export const handlers = [
     
     // Handle regular queries
     return HttpResponse.json(mockClickHouseResponse)
-  }),
-
-  // Error scenarios
-  http.get('*/sources/error', () => {
-    return HttpResponse.json(
-      { error: 'Unauthorized', message: 'Invalid API token' },
-      { status: 401 }
-    )
-  }),
-
-  http.get('*/source-groups/team-error', () => {
-    return HttpResponse.json(
-      { 
-        error: 'Forbidden',
-        message: 'Team API token required',
-        errors: ['Invalid Team API token']
-      },
-      { status: 403 }
-    )
-  }),
-
-  // Network timeout simulation
-  http.get('*/sources/timeout', () => {
-    return HttpResponse.error()
-  }),
-
-  // Rate limiting
-  http.get('*/sources/rate-limit', () => {
-    return HttpResponse.json(
-      { error: 'Too Many Requests', message: 'Rate limit exceeded' },
-      { status: 429 }
-    )
   })
-]
+)
+
+export function setupManualTestEnvironment(): void {
+  // Enable request interception
+  server.listen({ onUnhandledRequest: 'error' })
+  
+  // Make server available globally for tests
+  (globalThis as any).__MSW_SERVER__ = server
+}
+
+export function teardownManualTestEnvironment(): void {
+  // Clean up after tests
+  if ((globalThis as any).__MSW_SERVER__) {
+    server.close()
+    delete (globalThis as any).__MSW_SERVER__
+  }
+}
+
+export function resetMockHandlers(): void {
+  // Reset any runtime request handlers
+  if ((globalThis as any).__MSW_SERVER__) {
+    server.resetHandlers()
+  }
+}

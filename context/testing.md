@@ -21,8 +21,9 @@ We employ a **two-tier testing approach** that separates concerns and provides c
 
 ### Structure
 - **Location**: `tests/unit/`
-- **Pattern**: `{feature}.test.ts` (e.g., `source-management.test.ts`)
+- **Pattern**: `{tool-name}.test.ts` (e.g., `list-sources.test.ts`, `query-logs.test.ts`)
 - **Focus**: Business logic, API interactions, data transformations
+- **Organization**: One test file per tool for better maintainability
 
 ### Key Practices
 - Mock external APIs using MSW (Mock Service Worker)
@@ -32,7 +33,14 @@ We employ a **two-tier testing approach** that separates concerns and provides c
 
 ### Example Structure
 ```typescript
-describe('Source Management Tools', () => {
+// tests/unit/list-sources.test.ts
+describe('List Sources Tool', () => {
+  let client: BetterstackClient
+
+  beforeEach(() => {
+    client = new BetterstackClient(createTestConfig())
+  })
+
   describe('listSources', () => {
     it('should return list of sources')
     it('should return empty array when no sources available')
@@ -77,8 +85,13 @@ if (!result || !result.content || !Array.isArray(result.content)) {
 ```
 
 ### Integration Test Structure
+- **Location**: `tests/integration/`
+- **Pattern**: `{tool-name}-integration.test.ts` (e.g., `list-sources-integration.test.ts`, `query-logs-integration.test.ts`)
+- **Organization**: One integration test file per tool for better maintainability
+
 ```typescript
-describe('Tool via MCP protocol', () => {
+// tests/integration/list-sources-integration.test.ts
+describe('List Sources Integration Tests', () => {
   let server: McpServer
   let mcpHelper: McpTestHelper
 
@@ -88,9 +101,11 @@ describe('Tool via MCP protocol', () => {
     mcpHelper = new McpTestHelper(server)
   })
 
-  it('should return properly formatted MCP response', async () => {
-    const result = await mcpHelper.callTool('list_sources')
-    expect(result.content[0].type).toBe('text')
+  describe('list_sources tool via MCP protocol', () => {
+    it('should return properly formatted MCP response', async () => {
+      const result = await mcpHelper.callTool('list_sources')
+      expect(result.content[0].type).toBe('text')
+    })
   })
 })
 ```
@@ -191,17 +206,48 @@ const mockListSources = () => { /* reimplemented logic */ }
 const result = await mcpHelper.callTool('list_sources')
 ```
 
-❌ **Don't**: Mix unit and integration test concerns
+❌ **Don't**: Mix unit and integration test concerns  
 ❌ **Don't**: Duplicate tool registrations between environments  
-❌ **Don't**: Skip MCP response format validation
+❌ **Don't**: Skip MCP response format validation  
+❌ **Don't**: Create consolidated test files with multiple tools  
+✅ **Do**: Create individual test files per tool per test type
+
+## Test File Organization
+
+### File Structure Preference
+We use **individual test files per tool per test type** for better maintainability and clarity:
+
+```
+tests/
+├── unit/
+│   ├── list-sources.test.ts           # Unit tests for list_sources tool
+│   ├── get-source-info.test.ts        # Unit tests for get_source_info tool  
+│   ├── query-logs.test.ts             # Unit tests for query_logs tool
+│   └── test-connection.test.ts        # Unit tests for test_connection tool
+└── integration/
+    ├── list-sources-integration.test.ts           # Integration tests for list_sources tool
+    ├── get-source-info-integration.test.ts        # Integration tests for get_source_info tool
+    ├── query-logs-integration.test.ts             # Integration tests for query_logs tool
+    ├── test-connection-integration.test.ts        # Integration tests for test_connection tool
+    └── source-management-workflows-integration.test.ts  # Cross-tool workflow tests
+```
+
+### Benefits of Individual Files
+- **Focused testing**: Each file contains tests for a single tool
+- **Better maintainability**: Easier to locate and modify specific tool tests
+- **Clearer organization**: Obvious mapping between tools and test files
+- **Reduced merge conflicts**: Developers working on different tools won't conflict
+- **Faster test discovery**: IDEs can quickly navigate to relevant tests
 
 ## Test Maintenance
 
 ### When Adding New Tools
-1. Add unit tests for business logic
-2. Add integration tests for MCP protocol compliance
-3. Update CI pipeline if needed
-4. Ensure tools are registered in appropriate modules
+1. Create dedicated unit test file: `{tool-name}.test.ts`
+2. Create dedicated integration test file: `{tool-name}-integration.test.ts`
+3. Add unit tests for business logic in the dedicated unit file
+4. Add integration tests for MCP protocol compliance in the dedicated integration file
+5. Update CI pipeline if needed
+6. Ensure tools are registered in appropriate modules
 
 ### When Debugging Test Failures
 1. Check MCP server tool registration

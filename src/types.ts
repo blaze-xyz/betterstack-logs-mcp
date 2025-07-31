@@ -81,6 +81,8 @@ export interface QueryResult {
     query_time_ms?: number;
     sources_queried: string[];
     api_used?: string;
+    executed_sql?: string;
+    request_url?: string;
   };
 }
 
@@ -90,7 +92,31 @@ export interface BetterstackApiError {
   details?: any;
 }
 
-export type DataSourceType = 'recent' | 'historical' | 'metrics';
+export type DataSourceType = 'recent' | 'historical' | 'metrics' | 'union';
+
+// Time filter options matching BetterStack UI exactly
+export type RelativeTimeFilter = 
+  | 'last_30_minutes'
+  | 'last_60_minutes'
+  | 'last_3_hours'
+  | 'last_6_hours'
+  | 'last_12_hours'
+  | 'last_24_hours'
+  | 'last_2_days'
+  | 'last_7_days'
+  | 'last_14_days'
+  | 'last_30_days'
+  | 'everything';
+
+export interface CustomTimeRange {
+  start_datetime?: string; // ISO datetime string
+  end_datetime?: string;   // ISO datetime string
+}
+
+export interface TimeFilter {
+  relative?: RelativeTimeFilter;
+  custom?: CustomTimeRange;
+}
 
 export interface QueryOptions {
   sources?: string[];
@@ -101,4 +127,25 @@ export interface QueryOptions {
     start: Date;
     end: Date;
   };
+  // Raw filters for s3 optimization
+  rawFilters?: {
+    time_filter?: TimeFilter;
+  };
+}
+
+export interface TableColumn {
+  name: string;
+  type: string;
+  default_type?: string;
+  default_expression?: string;
+  comment?: string;
+  codec_expression?: string;
+  ttl_expression?: string;
+}
+
+export interface TableSchema {
+  tableName: string;
+  columns: TableColumn[];
+  availableFields: string[];
+  cacheTimestamp: number;
 }
