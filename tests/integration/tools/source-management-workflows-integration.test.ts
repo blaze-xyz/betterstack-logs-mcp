@@ -36,7 +36,7 @@ describe('Source Management Workflows Integration Tests', () => {
       // Then get detailed info for a specific group
       const groupDetailResult = await mcpHelper.callTool('get_source_group_info', { group_name: 'Development Environment' })
       expect(groupDetailResult.content[0].text).toContain('**Source Group: Development Environment**')
-      expect(groupDetailResult.content[0].text).toContain('Total Sources: 2')
+      expect(groupDetailResult.content[0].text).toContain('Total Sources: 3')
     })
   })
 

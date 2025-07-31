@@ -15,7 +15,7 @@ describe('List Sources Tool', () => {
     it('should return list of sources', async () => {
       const sources = await client.listSources()
       
-      expect(sources).toHaveLength(3)
+      expect(sources).toHaveLength(4)
       expect(sources[0]).toEqual({
         id: "1021715",
         name: "Spark - staging | deprecated",

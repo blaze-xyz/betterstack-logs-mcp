@@ -16,11 +16,12 @@ describe('Get Source Group Info Tool', () => {
       
       expect(groupInfo).toBeTruthy()
       expect(groupInfo?.name).toBe("Development Environment")
-      expect(groupInfo?.total_sources).toBe(2)
-      expect(groupInfo?.sources).toHaveLength(2)
+      expect(groupInfo?.total_sources).toBe(3)
+      expect(groupInfo?.sources).toHaveLength(3)
       expect(groupInfo?.sources.map(s => s.name)).toEqual([
         "Spark - staging | deprecated",
-        "Frontend Application"
+        "Frontend Application",
+        "Database Service"
       ])
     })
 

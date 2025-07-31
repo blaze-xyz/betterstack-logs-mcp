@@ -30,7 +30,7 @@ describe('List Source Groups Tool', () => {
       const groups = await client.listSourceGroups()
       
       const devGroup = groups.find(g => g.name === "Development Environment")
-      expect(devGroup?.source_ids).toEqual(["1021715", "1021717"])
+      expect(devGroup?.source_ids).toEqual(["1021715", "1021717", "1021718"])
       
       const prodGroup = groups.find(g => g.name === "Production Environment")
       expect(prodGroup?.source_ids).toEqual(["1021716"])

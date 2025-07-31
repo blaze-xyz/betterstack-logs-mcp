@@ -24,12 +24,13 @@ describe('Get Source Group Info Integration Tests', () => {
       const text = result.content[0].text
       expect(text).toContain('**Source Group: Development Environment**')
       expect(text).toContain('ID: 1')
-      expect(text).toContain('Total Sources: 2')
+      expect(text).toContain('Total Sources: 3')
       expect(text).toContain('Minimum Retention: 7 days')
       expect(text).toContain('Created: 1/1/2024')
       expect(text).toContain('**Included Sources:**')
       expect(text).toContain('• **Spark - staging | deprecated** (ID: 1021715)')
       expect(text).toContain('• **Frontend Application** (ID: 1021717)')
+      expect(text).toContain('• **Database Service** (ID: 1021718)')
     })
 
     it('should handle non-existent source group via MCP protocol', async () => {

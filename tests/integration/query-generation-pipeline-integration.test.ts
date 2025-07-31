@@ -292,17 +292,17 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
 
     // Step 4: Verify historical query optimization URL parameters
     // Source group historical queries should include URL parameters for optimization (using first source table)
-    // Expected timestamps: 2024-03-10T14:30:00Z = 1710080200000, 2024-03-10T20:15:00Z = 1710100500000
+    // Expected timestamps: 2024-03-10T14:30:00Z = 1710081000000, 2024-03-10T20:15:00Z = 1710101700000
     const expectedUrl =
-      "https://clickhouse.betterstack.com/?table=t12345.spark_staging&range-from=1710080200000&range-to=1710100500000";
+      "https://clickhouse.betterstack.com/?table=t12345.spark_staging&range-from=1710081000000&range-to=1710101700000";
     expect(responseText).toContain(`Request URL: ${expectedUrl}`);
 
     // Step 5: Verify timestamp consistency between SQL and URL
     // Validate that the timestamps in the URL match the datetime strings in the SQL query
-    const startTimestamp = new Date("2024-03-10T14:30:00Z").getTime(); // Should be 1710080200000
-    const endTimestamp = new Date("2024-03-10T20:15:00Z").getTime(); // Should be 1710100500000
-    expect(startTimestamp).toBe(1710080200000); // Verify our expected start timestamp is correct
-    expect(endTimestamp).toBe(1710100500000); // Verify our expected end timestamp is correct
+    const startTimestamp = new Date("2024-03-10T14:30:00Z").getTime(); // Should be 1710081000000
+    const endTimestamp = new Date("2024-03-10T20:15:00Z").getTime(); // Should be 1710101700000
+    expect(startTimestamp).toBe(1710081000000); // Verify our expected start timestamp is correct
+    expect(endTimestamp).toBe(1710101700000); // Verify our expected end timestamp is correct
     expect(responseText).toContain(`range-from=${startTimestamp}`);
     expect(responseText).toContain(`range-to=${endTimestamp}`);
   });

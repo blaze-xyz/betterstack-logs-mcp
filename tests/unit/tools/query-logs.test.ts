@@ -39,7 +39,7 @@ describe('Query Logs Tool', () => {
         level: 'INFO'
       })
       // By default, all sources are queried when no filter is specified
-      expect(result.meta?.sources_queried).toEqual(['Spark - staging | deprecated', 'Production API Server', 'Frontend Application'])
+      expect(result.meta?.sources_queried).toEqual(['Spark - staging | deprecated', 'Production API Server', 'Frontend Application', 'Database Service'])
     })
 
     it('should handle query with specific sources filter', async () => {
@@ -115,7 +115,7 @@ describe('Query Logs Tool', () => {
       const result = await client.executeQuery(query)
 
       expect(result.data).toEqual([])
-      expect(result.meta?.sources_queried).toEqual(['Spark - staging | deprecated', 'Production API Server', 'Frontend Application'])
+      expect(result.meta?.sources_queried).toEqual(['Spark - staging | deprecated', 'Production API Server', 'Frontend Application', 'Database Service'])
     })
 
     it('should handle different data types (historical)', async () => {
@@ -239,7 +239,7 @@ describe('Query Logs Tool', () => {
       const result = await client.executeQuery(query, options)
 
       expect(result.data).toHaveLength(2)
-      expect(result.meta?.sources_queried).toEqual(['Spark - staging | deprecated', 'Production API Server', 'Frontend Application'])
+      expect(result.meta?.sources_queried).toEqual(['Spark - staging | deprecated', 'Production API Server', 'Frontend Application', 'Database Service'])
     })
 
     it('should handle complex JSON log data', async () => {

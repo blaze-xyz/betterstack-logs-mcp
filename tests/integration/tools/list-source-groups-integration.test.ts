@@ -29,7 +29,8 @@ describe('List Source Groups Integration Tests', () => {
       expect(text).toContain('Available Source Groups')
       expect(text).toContain('Development Environment')
       expect(text).toContain('Production Environment')
-      expect(text).toContain('Sources: 2 source(s)')
+      expect(text).toContain('Sources: 3 source(s)') // Development Environment has 3 sources
+      expect(text).toContain('Sources: 1 source(s)') // Production Environment has 1 source
     })
 
     it('should handle team API token errors via MCP protocol', async () => {
