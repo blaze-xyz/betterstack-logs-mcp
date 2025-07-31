@@ -30,7 +30,9 @@
     "test:ci": "vitest run --coverage --reporter=verbose",
     "test:manual": "npm run build && node dist/scripts/run-manual-tests.js",
     "test:manual:list": "npm run test:manual -- --list",
-    "test:manual:verbose": "npm run test:manual -- --verbose"
+    "test:manual:verbose": "npm run test:manual -- --verbose",
+    "test:real-mcp": "npm run build && node dist/scripts/run-real-mcp-tests.js",
+    "test:real-mcp:list": "npm run test:real-mcp -- --list"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.15.0",

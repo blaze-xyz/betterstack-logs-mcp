@@ -18,6 +18,15 @@ export interface ManualTestCase {
     name: string
     arguments: Record<string, any>
   }
+  jsonRpcPayload?: {
+    jsonrpc: "2.0"
+    method: string
+    params: {
+      name: string
+      arguments: Record<string, any>
+    }
+    id: number
+  }
   expected: {
     shouldContain?: string[]
     shouldNotContain?: string[]
@@ -46,6 +55,15 @@ export const manualTestCases: ManualTestSuite = {
         name: "list_sources",
         arguments: {}
       },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "list_sources",
+          arguments: {}
+        },
+        id: 1
+      },
       expected: {
         shouldContain: ["Available Log Sources", "ID:"],
         resultCount: { min: 1 },
@@ -62,6 +80,15 @@ export const manualTestCases: ManualTestSuite = {
       payload: {
         name: "list_source_groups",
         arguments: {}
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "list_source_groups",
+          arguments: {}
+        },
+        id: 2
       },
       expected: {
         shouldContain: ["Source Groups"],
@@ -81,6 +108,17 @@ export const manualTestCases: ManualTestSuite = {
           source_id: "1386515"
         }
       },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "get_source_info",
+          arguments: {
+            source_id: "1386515"
+          }
+        },
+        id: 3
+      },
       expected: {
         shouldContain: ["Source:", "ID:", "Platform:"],
         notes: "Should return detailed source information"
@@ -99,6 +137,17 @@ export const manualTestCases: ManualTestSuite = {
           group_name: "Production Logs"
         }
       },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "get_source_group_info",
+          arguments: {
+            group_name: "Production Logs"
+          }
+        },
+        id: 4
+      },
       expected: {
         shouldContain: ["Source Group:", "Total Sources:", "Included Sources"],
         notes: "Should return detailed source group information"
@@ -115,6 +164,15 @@ export const manualTestCases: ManualTestSuite = {
         name: "test_connection",
         arguments: {}
       },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "test_connection",
+          arguments: {}
+        },
+        id: 5
+      },
       expected: {
         shouldContain: ["Connection"],
         notes: "Should verify both Telemetry API and ClickHouse connectivity"
@@ -123,17 +181,29 @@ export const manualTestCases: ManualTestSuite = {
     }
   },
 
-  "log-querying": {
+  "single-source-log-querying": {
     "basic-query": {
       id: "2.1",
       description: "Basic log query without filters",
-      category: "Log Querying Tests",
+      category: "Single Source Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
           sources: ["1386515"],
           limit: 5
         }
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "query_logs",
+          arguments: {
+            sources: ["1386515"],
+            limit: 5
+          }
+        },
+        id: 6
       },
       expected: {
         shouldContain: ["Query Results", "dt:", "raw:"],
@@ -148,7 +218,7 @@ export const manualTestCases: ManualTestSuite = {
     "raw-content-search": {
       id: "2.2",
       description: "Search logs by raw content substring",
-      category: "Log Querying Tests",
+      category: "Single Source Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -172,7 +242,7 @@ export const manualTestCases: ManualTestSuite = {
     "level-filtering": {
       id: "2.3",
       description: "Filter logs by level",
-      category: "Log Querying Tests",
+      category: "Single Source Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -195,7 +265,7 @@ export const manualTestCases: ManualTestSuite = {
     "time-filtering-relative": {
       id: "2.4",
       description: "Filter logs by relative time range",
-      category: "Log Querying Tests",
+      category: "Single Source Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -220,7 +290,7 @@ export const manualTestCases: ManualTestSuite = {
     "time-filtering-custom": {
       id: "2.5",
       description: "Filter logs by custom time range",
-      category: "Log Querying Tests",
+      category: "Single Source Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -248,7 +318,7 @@ export const manualTestCases: ManualTestSuite = {
     "combined-filters": {
       id: "2.6",
       description: "Combine multiple filters",
-      category: "Log Querying Tests",
+      category: "Single Source Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -274,9 +344,154 @@ export const manualTestCases: ManualTestSuite = {
     }
   },
 
+  "multi-source-log-querying": {
+    "basic-multi-source-query": {
+      id: "3.1",
+      description: "Basic log query across multiple sources",
+      category: "Multi-Source Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515", "1442440"],
+          limit: 5
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results", "dt:", "raw:"],
+        resultCount: { max: 5 },
+        notes: "Should return recent logs from both Spark Production and App Production sources"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:00:00Z', raw: 'Spark production log entry' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'App production log entry' }
+      ]
+    },
+    "multi-source-content-search": {
+      id: "3.2",
+      description: "Search logs across multiple sources by content",
+      category: "Multi-Source Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            raw_contains: "error"
+          },
+          sources: ["1386515", "1442440"],
+          limit: 10
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results"],
+        resultCount: { max: 10 },
+        notes: "Should return error logs from both Spark and App production sources"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:00:00Z', raw: 'ERROR: Spark production database failed' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'ERROR: App production authentication error' }
+      ]
+    },
+    "multi-source-time-filtering": {
+      id: "3.3",
+      description: "Filter logs across multiple sources by time",
+      category: "Multi-Source Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            time_filter: {
+              relative: "last_60_minutes"
+            }
+          },
+          sources: ["1386515", "1442440"],
+          limit: 15
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results"],
+        resultCount: { max: 15 },
+        notes: "Should return logs from both sources within last hour"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:30:00Z', raw: 'Recent Spark production log' },
+        { dt: '2024-01-01T10:45:00Z', raw: 'Recent App production log' }
+      ]
+    }
+  },
+
+  "source-group-log-querying": {
+    "basic-source-group-query": {
+      id: "4.1",
+      description: "Basic log query using source group",
+      category: "Source Group Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          source_group: "Production",
+          limit: 5
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results", "dt:", "raw:"],
+        resultCount: { max: 5 },
+        notes: "Should return recent logs from all sources in Production group"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:00:00Z', raw: 'Production group log entry 1' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'Production group log entry 2' }
+      ]
+    },
+    "source-group-content-search": {
+      id: "4.2",
+      description: "Search logs in source group by content",
+      category: "Source Group Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            raw_contains: "warning"
+          },
+          source_group: "Production",
+          limit: 10
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results"],
+        resultCount: { max: 10 },
+        notes: "Should return warning logs from all Production group sources"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:00:00Z', raw: 'WARNING: High memory usage in production' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'WARNING: Slow query detected in production' }
+      ]
+    },
+    "source-group-level-filtering": {
+      id: "4.3",
+      description: "Filter logs in source group by level",
+      category: "Source Group Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            level: "ERROR"
+          },
+          source_group: "Production",
+          limit: 12
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results"],
+        resultCount: { max: 12 },
+        notes: "Should return ERROR level logs from all Production group sources"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"error","message":"Production error detected"}' }
+      ]
+    }
+  },
+
   "output-formats": {
     "default-jsonrows": {
-      id: "3.1",
+      id: "5.1",
       description: "Default JSONEachRow format",
       category: "Output Format Tests",
       payload: {
@@ -299,7 +514,7 @@ export const manualTestCases: ManualTestSuite = {
       ]
     },
     "pretty-format": {
-      id: "3.2",
+      id: "5.2",
       description: "Pretty format for human reading",
       category: "Output Format Tests",
       payload: {
@@ -321,7 +536,7 @@ export const manualTestCases: ManualTestSuite = {
       ]
     },
     "csv-format": {
-      id: "3.3",
+      id: "5.3",
       description: "CSV format for data export",
       category: "Output Format Tests",
       payload: {
@@ -343,7 +558,7 @@ export const manualTestCases: ManualTestSuite = {
       ]
     },
     "json-format": {
-      id: "3.4",
+      id: "5.4",
       description: "JSON format (single object)",
       category: "Output Format Tests",
       payload: {
@@ -365,7 +580,7 @@ export const manualTestCases: ManualTestSuite = {
       ]
     },
     "tsv-format": {
-      id: "3.5",
+      id: "5.5",
       description: "TSV format for spreadsheet import",
       category: "Output Format Tests",
       payload: {
@@ -390,7 +605,7 @@ export const manualTestCases: ManualTestSuite = {
 
   "debug-tools": {
     "debug-table-info": {
-      id: "4.1",
+      id: "6.1",
       description: "Debug table information and schema",
       category: "Debug Tools Tests",
       payload: {
@@ -409,7 +624,7 @@ export const manualTestCases: ManualTestSuite = {
 
   "limit-testing": {
     "small-limit": {
-      id: "5.1",
+      id: "7.1",
       description: "Small limit test",
       category: "Limit Testing",
       payload: {
@@ -429,7 +644,7 @@ export const manualTestCases: ManualTestSuite = {
       ]
     },
     "large-limit": {
-      id: "5.2",
+      id: "7.2",
       description: "Large limit test",
       category: "Limit Testing",
       payload: {

@@ -5,6 +5,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { McpTestHelper } from '../helpers/mcp-test-helper.js'
 import { createTestServer } from '../helpers/test-server-factory.js'
 import { ManualTestCase } from './test-cases.js'
+import fs from 'fs'
+import path from 'path'
 
 // Will use dynamic imports for MSW to avoid TypeScript issues
 
@@ -82,6 +84,30 @@ export class ManualTestRunner {
             }
           })
         }),
+        http.get('https://telemetry.betterstack.com/api/v1/source-groups', () => {
+          return HttpResponse.json({ 
+            data: [
+              {
+                id: '1',
+                type: 'source_group',
+                attributes: {
+                  team_id: 298009,
+                  team_name: 'Test Team',
+                  name: 'Production',
+                  sort_index: 1,
+                  created_at: '2024-01-01T10:00:00Z',
+                  updated_at: '2024-01-15T10:00:00Z'
+                }
+              }
+            ],
+            pagination: {
+              page: 1,
+              per_page: 50,
+              total_pages: 1,
+              total_count: 1
+            }
+          })
+        }),
         http.post('https://clickhouse.betterstack.com/', () => {
           return HttpResponse.json({ data: [] })
         })
@@ -103,11 +129,17 @@ export class ManualTestRunner {
       // Setup mock data for this test case
       await this.setupMockData(testCase)
       
+      // Log the JSON-RPC payload for Postman usage
+      this.logMcpPayload(testCase)
+      
       // Execute the test
       const response = await this.mcpHelper.callTool(
         testCase.payload.name,
         testCase.payload.arguments
       )
+      
+      // Log the MCP response
+      this.logMcpResponse(testCase, response)
       
       const executionTime = Date.now() - startTime
       
@@ -370,5 +402,65 @@ export class ManualTestRunner {
     }
     
     console.log('='.repeat(60))
+  }
+
+  private logMcpPayload(testCase: ManualTestCase): void {
+    try {
+      const logsDir = path.join(process.cwd(), 'dist', 'logs', 'manual-tests')
+      fs.mkdirSync(logsDir, { recursive: true })
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
+      const payloadLogPath = path.join(logsDir, `${timestamp}_mcp_payloads.log`)
+      
+      const logEntry = {
+        timestamp: new Date().toISOString(),
+        testCase: {
+          id: testCase.id,
+          description: testCase.description,
+          category: testCase.category
+        },
+        mcpPayload: testCase.payload,
+        jsonRpcPayload: testCase.jsonRpcPayload || null,
+        postmanReady: testCase.jsonRpcPayload ? {
+          method: 'POST',
+          url: 'http://localhost:3000/v1/tools/call', // Adjust based on your MCP server endpoint
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: testCase.jsonRpcPayload
+        } : null
+      }
+      
+      const logLine = `\n${'='.repeat(80)}\n` +
+                     `[REQUEST] ${testCase.id}: ${testCase.description}\n` +
+                     `${'='.repeat(80)}\n` +
+                     `MCP Payload:\n${JSON.stringify(testCase.payload, null, 2)}\n\n` +
+                     `JSON-RPC Payload (for Postman):\n${JSON.stringify(testCase.jsonRpcPayload || 'Not available', null, 2)}\n\n` +
+                     `Postman Request Configuration:\n${JSON.stringify(logEntry.postmanReady || 'Not available', null, 2)}\n`
+      
+      fs.appendFileSync(payloadLogPath, logLine)
+    } catch (error) {
+      console.warn('Failed to log MCP payload:', error)
+    }
+  }
+
+  private logMcpResponse(testCase: ManualTestCase, response: any): void {
+    try {
+      const logsDir = path.join(process.cwd(), 'dist', 'logs', 'manual-tests')
+      fs.mkdirSync(logsDir, { recursive: true })
+      
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
+      const payloadLogPath = path.join(logsDir, `${timestamp}_mcp_payloads.log`)
+      
+      const logLine = `${'='.repeat(80)}\n` +
+                     `[RESPONSE] ${testCase.id}: ${testCase.description}\n` +
+                     `${'='.repeat(80)}\n` +
+                     `Response:\n${JSON.stringify(response, null, 2)}\n\n` +
+                     `Response Content (if text):\n${response?.content?.[0]?.text || 'No text content'}\n\n`
+      
+      fs.appendFileSync(payloadLogPath, logLine)
+    } catch (error) {
+      console.warn('Failed to log MCP response:', error)
+    }
   }
 }

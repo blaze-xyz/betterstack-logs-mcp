@@ -28,6 +28,23 @@ const server = setupServer(
     })
   }),
 
+  // Betterstack Telemetry API - List source groups
+  http.get('https://telemetry.betterstack.com/api/v1/source-groups', ({ request }) => {
+    const url = new URL(request.url)
+    const page = url.searchParams.get('page') || '1'
+    const perPage = url.searchParams.get('per_page') || '50'
+    
+    return HttpResponse.json({
+      data: mockApiSourceGroups,
+      pagination: {
+        page: parseInt(page),
+        per_page: parseInt(perPage),
+        total_pages: 1,
+        total_count: mockApiSourceGroups.length
+      }
+    })
+  }),
+
   // ClickHouse query endpoint
   http.post('https://clickhouse.betterstack.com/', async ({ request }) => {
     const query = await request.text()
