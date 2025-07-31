@@ -86,8 +86,11 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
       // Time filtering
       if (filters.time_filter) {
         const timeFilter = buildTimeFilter(filters.time_filter);
-        if (timeFilter) {
-          whereConditions.push(timeFilter);
+        if (timeFilter !== null) {
+          // Only add the condition if it's not empty (empty string means "everything")
+          if (timeFilter !== '') {
+            whereConditions.push(timeFilter);
+          }
         } else {
           throw new Error(`Invalid time filter format: ${JSON.stringify(filters.time_filter)}`);
         }
@@ -173,19 +176,41 @@ export function buildTimeFilter(timeFilter: TimeFilter): string | null {
     const conditions: string[] = [];
     
     try {
-      // Validate and convert ISO datetime strings
-      const startDate = new Date(timeFilter.custom.start_datetime);
-      const endDate = new Date(timeFilter.custom.end_datetime);
-      
-      if (isNaN(startDate.getTime())) {
-        throw new Error(`Invalid start_datetime: ${timeFilter.custom.start_datetime}`);
+      // Handle start_datetime if provided
+      if (timeFilter.custom.start_datetime) {
+        const startDate = new Date(timeFilter.custom.start_datetime);
+        if (isNaN(startDate.getTime())) {
+          throw new Error(`Invalid start_datetime: ${timeFilter.custom.start_datetime}`);
+        }
+        
+        // Check if timezone info is present (Z or +/-offset)
+        if (timeFilter.custom.start_datetime.includes('Z') || 
+            timeFilter.custom.start_datetime.match(/[+-]\d{2}:\d{2}$/)) {
+          conditions.push(`dt >= parseDateTime64BestEffort('${timeFilter.custom.start_datetime}')`);
+        } else {
+          conditions.push(`dt >= '${timeFilter.custom.start_datetime}'`);
+        }
       }
-      if (isNaN(endDate.getTime())) {
-        throw new Error(`Invalid end_datetime: ${timeFilter.custom.end_datetime}`);
+      
+      // Handle end_datetime if provided
+      if (timeFilter.custom.end_datetime) {
+        const endDate = new Date(timeFilter.custom.end_datetime);
+        if (isNaN(endDate.getTime())) {
+          throw new Error(`Invalid end_datetime: ${timeFilter.custom.end_datetime}`);
+        }
+        
+        // Check if timezone info is present (Z or +/-offset)
+        if (timeFilter.custom.end_datetime.includes('Z') || 
+            timeFilter.custom.end_datetime.match(/[+-]\d{2}:\d{2}$/)) {
+          conditions.push(`dt <= parseDateTime64BestEffort('${timeFilter.custom.end_datetime}')`);
+        } else {
+          conditions.push(`dt <= '${timeFilter.custom.end_datetime}'`);
+        }
       }
       
-      conditions.push(`dt >= '${timeFilter.custom.start_datetime}'`);
-      conditions.push(`dt <= '${timeFilter.custom.end_datetime}'`);
+      if (conditions.length === 0) {
+        throw new Error('Custom time filter must specify at least start_datetime or end_datetime');
+      }
       
       return conditions.join(' AND ');
     } catch (error) {

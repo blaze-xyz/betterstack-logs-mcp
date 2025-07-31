@@ -119,120 +119,268 @@ describe('buildStructuredQuery Function', () => {
   })
 
   describe('Time Range Filtering', () => {
-    it('should generate relative time filter (compact format)', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            last: '1h'
-          }
-        },
-        limit: 10
-      }
+    describe('Relative Time Filters - Minutes', () => {
+      it('should handle last_30_minutes', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_30_minutes'
+            }
+          },
+          limit: 10
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 30 MINUTE ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
+
+      it('should handle last_60_minutes', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_60_minutes'
+            }
+          },
+          limit: 10
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
     })
 
-    it('should generate relative time filter (natural language)', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            last: '30 minutes'
-          }
-        },
-        limit: 10
-      }
+    describe('Relative Time Filters - Hours', () => {
+      it('should handle last_3_hours', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_3_hours'
+            }
+          },
+          limit: 10
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 30 MINUTE ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 3 HOUR ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
+
+      it('should handle last_6_hours', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_6_hours'
+            }
+          },
+          limit: 10
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
+
+      it('should handle last_12_hours', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_12_hours'
+            }
+          },
+          limit: 10
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
+
+      it('should handle last_24_hours', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_24_hours'
+            }
+          },
+          limit: 10
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 24 HOUR ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
     })
 
-    it('should generate absolute time range filters', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            start: '2024-01-15',
-            end: '2024-01-16'
-          }
-        },
-        limit: 10
-      }
+    describe('Relative Time Filters - Days', () => {
+      it('should handle last_2_days', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_2_days'
+            }
+          },
+          limit: 10
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15' AND dt <= '2024-01-16' ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 2 DAY ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
+
+      it('should handle last_7_days', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_7_days'
+            }
+          },
+          limit: 10
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 7 DAY ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
+
+      it('should handle last_14_days', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_14_days'
+            }
+          },
+          limit: 10
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 14 DAY ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
+
+      it('should handle last_30_days', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'last_30_days'
+            }
+          },
+          limit: 10
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs WHERE dt >= now() - INTERVAL 30 DAY ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
     })
 
-    it('should handle tight time spans with precise timestamps', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            start: '2024-01-15T14:30:00',
-            end: '2024-01-15T14:32:00'
-          }
-        },
-        limit: 50
-      }
+    describe('Relative Time Filters - Special Cases', () => {
+      it('should handle everything (no time filter)', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              relative: 'everything'
+            }
+          },
+          limit: 10
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
+      })
     })
 
-    it('should handle 10-minute debugging windows', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            start: '2024-01-15T09:15:00',
-            end: '2024-01-15T09:25:00'
-          }
-        },
-        limit: 100
-      }
+    describe('Custom Time Filters', () => {
+      it('should generate absolute time range filters', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: '2024-01-15',
+                end_datetime: '2024-01-16'
+              }
+            }
+          },
+          limit: 10
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T09:15:00' AND dt <= '2024-01-15T09:25:00' ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15' AND dt <= '2024-01-16' ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      })
 
-    it('should handle second precision for very tight windows', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            start: '2024-01-15T14:30:15',
-            end: '2024-01-15T14:30:25'
-          }
-        },
-        limit: 20
-      }
+      it('should handle tight time spans with precise timestamps', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: '2024-01-15T14:30:00',
+                end_datetime: '2024-01-15T14:32:00'
+              }
+            }
+          },
+          limit: 50
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:15' AND dt <= '2024-01-15T14:30:25' ORDER BY dt DESC LIMIT 20 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:00' AND dt <= '2024-01-15T14:32:00' ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      })
 
-    it('should handle start-only filter for logs after specific time', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            start: '2024-01-15T14:30:00'
-          }
-        },
-        limit: 25
-      }
+      it('should handle 10-minute debugging windows', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: '2024-01-15T09:15:00',
+                end_datetime: '2024-01-15T09:25:00'
+              }
+            }
+          },
+          limit: 100
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:00' ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T09:15:00' AND dt <= '2024-01-15T09:25:00' ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      })
 
-    it('should handle end-only filter for logs before specific time', async () => {
-      const params: StructuredQueryParams = {
-        filters: {
-          time_range: {
-            end: '2024-01-15T14:30:00'
-          }
-        },
-        limit: 25
-      }
+      it('should handle second precision for very tight windows', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: '2024-01-15T14:30:15',
+                end_datetime: '2024-01-15T14:30:25'
+              }
+            }
+          },
+          limit: 20
+        }
 
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE dt <= '2024-01-15T14:30:00' ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:15' AND dt <= '2024-01-15T14:30:25' ORDER BY dt DESC LIMIT 20 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      })
+
+      it('should handle start-only filter for logs after specific time', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: '2024-01-15T14:30:00'
+              }
+            }
+          },
+          limit: 25
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe("SELECT dt, raw FROM logs WHERE dt >= '2024-01-15T14:30:00' ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      })
+
+      it('should handle end-only filter for logs before specific time', async () => {
+        const params: StructuredQueryParams = {
+          filters: {
+            time_filter: {
+              custom: {
+                end_datetime: '2024-01-15T14:30:00'
+              }
+            }
+          },
+          limit: 25
+        }
+
+        const query = await buildStructuredQuery(params)
+        expect(query).toBe("SELECT dt, raw FROM logs WHERE dt <= '2024-01-15T14:30:00' ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      })
     })
   })
 
@@ -243,15 +391,15 @@ describe('buildStructuredQuery Function', () => {
         filters: {
           raw_contains: 'api',
           level: 'ERROR',
-          time_range: {
-            last: '1h'
+          time_filter: {
+            relative: 'last_60_minutes'
           }
         },
         limit: 25
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%api%') AND ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%api%') AND ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle all filter types together', async () => {
@@ -259,8 +407,8 @@ describe('buildStructuredQuery Function', () => {
         filters: {
           raw_contains: 'payment',
           level: 'INFO',
-          time_range: {
-            last: '2d'
+          time_filter: {
+            relative: 'last_2_days'
           }
         },
         limit: 100
@@ -275,9 +423,11 @@ describe('buildStructuredQuery Function', () => {
         filters: {
           raw_contains: 'database connection',
           level: 'ERROR',
-          time_range: {
-            start: '2024-01-15T14:30:00',
-            end: '2024-01-15T14:32:00'
+          time_filter: {
+            custom: {
+              start_datetime: '2024-01-15T14:30:00',
+              end_datetime: '2024-01-15T14:32:00'
+            }
           }
         },
         limit: 50
@@ -298,15 +448,15 @@ describe('buildStructuredQuery Function', () => {
         ],
         filters: {
           level: 'ERROR',
-          time_range: {
-            last: '4h'
+          time_filter: {
+            relative: 'last_6_hours'
           }
         },
         limit: 50
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method, getJSON(raw, 'response.status_code') as status FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 4 HOUR ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method, getJSON(raw, 'response.status_code') as status FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
     it('should handle no filters (fields and ordering only)', async () => {
@@ -425,9 +575,11 @@ describe('buildStructuredQuery Function', () => {
     it('should accept ISO dates with Z timezone suffix', async () => {
       const params: StructuredQueryParams = {
         filters: {
-          time_range: {
-            start: '2024-07-28T10:00:00Z',
-            end: '2024-07-28T12:00:00Z'
+          time_filter: {
+            custom: {
+              start_datetime: '2024-07-28T10:00:00Z',
+              end_datetime: '2024-07-28T12:00:00Z'
+            }
           }
         },
         limit: 10
@@ -440,9 +592,11 @@ describe('buildStructuredQuery Function', () => {
     it('should accept ISO dates with timezone offset', async () => {
       const params: StructuredQueryParams = {
         filters: {
-          time_range: {
-            start: '2024-07-28T10:00:00+00:00',
-            end: '2024-07-28T12:00:00-05:00'
+          time_filter: {
+            custom: {
+              start_datetime: '2024-07-28T10:00:00+00:00',
+              end_datetime: '2024-07-28T12:00:00-05:00'
+            }
           }
         },
         limit: 10
@@ -455,9 +609,11 @@ describe('buildStructuredQuery Function', () => {
     it('should still accept ISO dates without timezone', async () => {
       const params: StructuredQueryParams = {
         filters: {
-          time_range: {
-            start: '2024-07-28T10:00:00',
-            end: '2024-07-28T12:00:00'
+          time_filter: {
+            custom: {
+              start_datetime: '2024-07-28T10:00:00',
+              end_datetime: '2024-07-28T12:00:00'
+            }
           }
         },
         limit: 10
@@ -470,9 +626,11 @@ describe('buildStructuredQuery Function', () => {
     it('should still accept date-only format', async () => {
       const params: StructuredQueryParams = {
         filters: {
-          time_range: {
-            start: '2024-07-28',
-            end: '2024-07-29'
+          time_filter: {
+            custom: {
+              start_datetime: '2024-07-28',
+              end_datetime: '2024-07-29'
+            }
           }
         },
         limit: 10
@@ -550,8 +708,8 @@ describe('buildStructuredQuery Function', () => {
         ],
         filters: {
           raw_contains: 'error',
-          time_range: {
-            last: '1h'
+          time_filter: {
+            relative: 'last_60_minutes'
           }
         },
         limit: 25,
@@ -559,7 +717,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'level') as log_level FROM logs WHERE ilike(raw, '%error%') AND dt >= now() - INTERVAL 1 HOUR ORDER BY dt DESC LIMIT 25 FORMAT Pretty")
+      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'level') as log_level FROM logs WHERE ilike(raw, '%error%') AND dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 25 FORMAT Pretty")
     })
 
     it('should work with historical data type and CSV format', async () => {

@@ -108,8 +108,8 @@ export type RelativeTimeFilter =
   | 'everything';
 
 export interface CustomTimeRange {
-  start_datetime: string; // ISO datetime string
-  end_datetime: string;   // ISO datetime string
+  start_datetime?: string; // ISO datetime string
+  end_datetime?: string;   // ISO datetime string
 }
 
 export interface TimeFilter {
