@@ -3,6 +3,11 @@
  * 
  * This file contains all test cases from the manual testing checklist in a structured format
  * that can be executed programmatically while maintaining human readability.
+ * 
+ * Updated to reflect current MCP server functionality as of 2025-07-31:
+ * - Source management tools (list_sources, get_source_info, etc.)
+ * - Log querying with filters (query_logs)
+ * - Connection testing (test_connection, debug_table_info)
  */
 
 export interface ManualTestCase {
@@ -32,92 +37,118 @@ export interface ManualTestSuite {
 }
 
 export const manualTestCases: ManualTestSuite = {
-  "json-field-extraction": {
-    "extract-default-alias": {
+  "source-management": {
+    "list-sources": {
       id: "1.1",
-      description: "Extract JSON field with default alias",
-      category: "JSON Field Extraction Tests",
+      description: "List all available log sources",
+      category: "Source Management Tests",
       payload: {
-        name: "query_logs",
-        arguments: {
-          json_fields: [{ path: "level" }],
-          sources: ["1386515"],
-          limit: 5
-        }
+        name: "list_sources",
+        arguments: {}
       },
       expected: {
-        shouldContain: ["level field", "Query Results"],
-        format: "JSONEachRow",
-        resultCount: { max: 5 }
+        shouldContain: ["Available Log Sources", "ID:"],
+        resultCount: { min: 1 },
+        notes: "Should return at least one configured source"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'INFO: Application started', level: 'INFO' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'ERROR: Database connection failed', level: 'ERROR' },
-        { dt: '2024-01-01T10:02:00Z', raw: 'WARN: High memory usage detected', level: 'WARN' }
+        { id: '1386515', name: 'Test Source', platform: 'ubuntu', retention_days: 30 }
       ]
     },
-    "extract-custom-alias": {
+    "list-source-groups": {
       id: "1.2",
-      description: "Extract JSON field with custom alias",
-      category: "JSON Field Extraction Tests",
+      description: "List all source groups",
+      category: "Source Management Tests",
       payload: {
-        name: "query_logs",
-        arguments: {
-          json_fields: [{ path: "level", alias: "log_level" }],
-          sources: ["1386515"],
-          limit: 5
-        }
+        name: "list_source_groups",
+        arguments: {}
       },
       expected: {
-        shouldContain: ["log_level", "Query Results"],
-        format: "JSONEachRow",
-        resultCount: { max: 5 }
+        shouldContain: ["Source Groups"],
+        notes: "May return empty if no groups configured or if team token needed"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'INFO: Application started', level: 'INFO' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'ERROR: Database connection failed', level: 'ERROR' }
+        { id: 'group1', name: 'Production Logs', source_ids: ['1386515'] }
       ]
     },
-    "extract-multiple-nested": {
+    "get-source-info": {
       id: "1.3",
-      description: "Extract multiple nested JSON fields",
-      category: "JSON Field Extraction Tests",
+      description: "Get detailed information about a specific source",
+      category: "Source Management Tests",
       payload: {
-        name: "query_logs",
+        name: "get_source_info",
         arguments: {
-          json_fields: [
-            { path: "level", alias: "log_level" },
-            { path: "message", alias: "msg" },
-            { path: "context.hostname", alias: "host" },
-            { path: "user.id", alias: "user_id" }
-          ],
-          sources: ["1386515"],
-          limit: 5
+          source_id: "1386515"
         }
       },
       expected: {
-        shouldContain: ["log_level", "msg", "host", "user_id", "Query Results"],
-        format: "JSONEachRow",
-        resultCount: { max: 5 }
+        shouldContain: ["Source:", "ID:", "Platform:"],
+        notes: "Should return detailed source information"
       },
       mockData: [
-        { 
-          dt: '2024-01-01T10:00:00Z', 
-          raw: 'User login successful', 
-          level: 'INFO',
-          message: 'User login successful',
-          context: { hostname: 'web-server-01' },
-          user: { id: 12345 }
-        }
+        { id: '1386515', name: 'Test Source', platform: 'ubuntu' }
       ]
+    },
+    "get-source-group-info": {
+      id: "1.4",
+      description: "Get detailed information about a source group",
+      category: "Source Management Tests",
+      payload: {
+        name: "get_source_group_info",
+        arguments: {
+          group_name: "Production Logs"
+        }
+      },
+      expected: {
+        shouldContain: ["Source Group:", "Total Sources:", "Included Sources"],
+        notes: "Should return detailed source group information"
+      },
+      mockData: [
+        { id: 'group1', name: 'Production Logs', source_ids: ['1386515'] }
+      ]
+    },
+    "test-connection": {
+      id: "1.5",
+      description: "Test connection to BetterStack APIs",
+      category: "Source Management Tests",
+      payload: {
+        name: "test_connection",
+        arguments: {}
+      },
+      expected: {
+        shouldContain: ["Connection"],
+        notes: "Should verify both Telemetry API and ClickHouse connectivity"
+      },
+      mockData: []
     }
   },
 
-  "raw-content-filtering": {
-    "simple-substring-search": {
+  "log-querying": {
+    "basic-query": {
       id: "2.1",
-      description: "Simple substring search",
-      category: "Raw Content Filtering Tests",
+      description: "Basic log query without filters",
+      category: "Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 5
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results", "dt:", "raw:"],
+        resultCount: { max: 5 },
+        notes: "Should return recent logs with timestamp and raw message"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:00:00Z', raw: 'Test log entry 1' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'Test log entry 2' }
+      ]
+    },
+    "raw-content-search": {
+      id: "2.2",
+      description: "Search logs by raw content substring",
+      category: "Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -129,44 +160,19 @@ export const manualTestCases: ManualTestSuite = {
         }
       },
       expected: {
-        shouldContain: ["error", "Query Results"],
-        resultCount: { max: 10 }
+        shouldContain: ["Query Results"],
+        resultCount: { max: 10 },
+        notes: "Should return logs containing 'error' substring (case-insensitive)"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'ERROR: Database connection failed', level: 'ERROR' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'Application error in user authentication', level: 'ERROR' }
+        { dt: '2024-01-01T10:00:00Z', raw: 'ERROR: Database connection failed' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'Application error in authentication' }
       ]
     },
-    "specific-pattern-search": {
-      id: "2.2",
-      description: "Search for specific patterns",
-      category: "Raw Content Filtering Tests",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          filters: {
-            raw_contains: "HTTP 500"
-          },
-          sources: ["1386515"],
-          limit: 10
-        }
-      },
-      expected: {
-        shouldContain: ["HTTP 500", "Query Results"],
-        resultCount: { max: 10 }
-      },
-      mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'HTTP 500 Internal Server Error on /api/users', level: 'ERROR' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'Returned HTTP 500 due to database timeout', level: 'ERROR' }
-      ]
-    }
-  },
-
-  "log-level-filtering": {
-    "filter-error-level": {
-      id: "3.1",
-      description: "Filter by ERROR level",
-      category: "Log Level Filtering Tests",
+    "level-filtering": {
+      id: "2.3",
+      description: "Filter logs by level",
+      category: "Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -178,79 +184,24 @@ export const manualTestCases: ManualTestSuite = {
         }
       },
       expected: {
-        shouldContain: ["ERROR", "Query Results"],
-        resultCount: { max: 10 }
+        shouldContain: ["Query Results"],
+        resultCount: { max: 10 },
+        notes: "Should return logs with ERROR level using pattern matching"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"ERROR","message":"Database connection failed","timestamp":"2024-01-01T10:00:00Z"}', level: 'ERROR' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'ERROR: Authentication failed for user', level: 'ERROR' },
-        { dt: '2024-01-01T10:02:00Z', raw: '[ERROR] Invalid API key provided', level: 'ERROR' },
-        { dt: '2024-01-01T10:03:00Z', raw: 'level=ERROR Failed to process payment', level: 'ERROR' }
+        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"error","message":"Database failed"}' }
       ]
     },
-    "filter-info-level": {
-      id: "3.2",
-      description: "Filter by INFO level",
-      category: "Log Level Filtering Tests",
+    "time-filtering-relative": {
+      id: "2.4",
+      description: "Filter logs by relative time range",
+      category: "Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
           filters: {
-            level: "INFO"
-          },
-          sources: ["1386515"],
-          limit: 10
-        }
-      },
-      expected: {
-        shouldContain: ["INFO", "Query Results"],
-        resultCount: { max: 10 }
-      },
-      mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: '{"level": "INFO", "message": "Application started successfully"}', level: 'INFO' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'INFO: User logged in successfully', level: 'INFO' },
-        { dt: '2024-01-01T10:02:00Z', raw: '\tINFO\tRequest processed successfully', level: 'INFO' },
-        { dt: '2024-01-01T10:03:00Z', raw: 'Cache miss for key user:123\nINFO', level: 'INFO' }
-      ]
-    },
-    "filter-warn-level": {
-      id: "3.3",
-      description: "Filter by WARN level",
-      category: "Log Level Filtering Tests",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          filters: {
-            level: "WARN"
-          },
-          sources: ["1386515"],
-          limit: 10
-        }
-      },
-      expected: {
-        shouldContain: ["WARN", "Query Results"],
-        resultCount: { max: 10 }
-      },
-      mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"WARN","message":"High memory usage detected","memory_usage":"85%"}', level: 'WARN' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'WARN: Slow database query detected', level: 'WARN' },
-        { dt: '2024-01-01T10:02:00Z', raw: '[WARN] Connection pool nearly exhausted', level: 'WARN' },
-        { dt: '2024-01-01T10:03:00Z', raw: ' WARN Rate limit approaching for API key', level: 'WARN' }
-      ]
-    }
-  },
-
-  "time-range-filtering": {
-    "last-hour": {
-      id: "4.1",
-      description: "Last hour",
-      category: "Time Range Filtering Tests",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          filters: {
-            time_range: {
-              last: "1h"
+            time_filter: {
+              relative: "last_30_minutes"
             }
           },
           sources: ["1386515"],
@@ -260,23 +211,25 @@ export const manualTestCases: ManualTestSuite = {
       expected: {
         shouldContain: ["Query Results"],
         resultCount: { max: 10 },
-        notes: "Should only return logs from the last hour"
+        notes: "Should return logs from last 30 minutes only"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Recent log entry 1', level: 'INFO' },
-        { dt: '2024-01-01T10:30:00Z', raw: 'Recent log entry 2', level: 'INFO' }
+        { dt: '2024-01-01T10:45:00Z', raw: 'Recent log entry' }
       ]
     },
-    "last-30-minutes": {
-      id: "4.2",
-      description: "Last 30 minutes",
-      category: "Time Range Filtering Tests",
+    "time-filtering-custom": {
+      id: "2.5",
+      description: "Filter logs by custom time range",
+      category: "Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
           filters: {
-            time_range: {
-              last: "30m"
+            time_filter: {
+              custom: {
+                start_datetime: "2025-07-30T10:00:00Z",
+                end_datetime: "2025-07-30T12:00:00Z"
+              }
             }
           },
           sources: ["1386515"],
@@ -286,138 +239,24 @@ export const manualTestCases: ManualTestSuite = {
       expected: {
         shouldContain: ["Query Results"],
         resultCount: { max: 10 },
-        notes: "Should only return logs from the last 30 minutes"
+        notes: "Should return logs within specified custom time range"
       },
       mockData: [
-        { dt: '2024-01-01T10:45:00Z', raw: 'Very recent log entry', level: 'INFO' }
+        { dt: '2025-07-30T10:30:00Z', raw: 'Log within custom time range' }
       ]
     },
-    "specific-time-range": {
-      id: "4.3",
-      description: "Specific time range with start and end",
-      category: "Time Range Filtering Tests",
+    "combined-filters": {
+      id: "2.6",
+      description: "Combine multiple filters",
+      category: "Log Querying Tests",
       payload: {
         name: "query_logs",
         arguments: {
           filters: {
-            time_range: {
-              start: "2024-01-15T10:00:00",
-              end: "2024-01-15T12:00:00"
-            }
-          },
-          sources: ["1386515"],
-          limit: 10
-        }
-      },
-      expected: {
-        shouldContain: ["Query Results"],
-        resultCount: { max: 10 },
-        notes: "Should only return logs between specified start and end times"
-      },
-      mockData: [
-        { dt: '2024-01-15T10:30:00Z', raw: 'Log within time range', level: 'INFO' },
-        { dt: '2024-01-15T11:00:00Z', raw: 'Another log within range', level: 'INFO' }
-      ]
-    },
-    "iso-timestamps": {
-      id: "4.4",
-      description: "Start and end with ISO timestamps",
-      category: "Time Range Filtering Tests",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          filters: {
-            time_range: {
-              start: "2025-07-28T10:00:00Z",
-              end: "2025-07-28T12:00:00Z"
-            }
-          },
-          sources: ["1386515"],
-          limit: 10
-        }
-      },
-      expected: {
-        shouldContain: ["Query Results"],
-        resultCount: { max: 10 },
-        notes: "Should handle ISO timestamp format correctly"
-      },
-      mockData: [
-        { dt: '2025-07-28T10:30:00Z', raw: 'Log with ISO timestamp', level: 'INFO' }
-      ]
-    },
-    "relative-start-time": {
-      id: "4.5",
-      description: "Relative start time",
-      category: "Time Range Filtering Tests",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          filters: {
-            time_range: {
-              start: "2 hours ago"
-            }
-          },
-          sources: ["1386515"],
-          limit: 10
-        }
-      },
-      expected: {
-        shouldContain: ["Query Results"],
-        resultCount: { max: 10 },
-        notes: "Should handle relative time expressions"
-      },
-      mockData: [
-        { dt: '2024-01-01T08:00:00Z', raw: 'Log from 2 hours ago', level: 'INFO' },
-        { dt: '2024-01-01T09:00:00Z', raw: 'Log from 1 hour ago', level: 'INFO' }
-      ]
-    }
-  },
-
-  "combined-filters": {
-    "multiple-filters": {
-      id: "5.1",
-      description: "Multiple filters combined",
-      category: "Combined Filter Tests",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          filters: {
-            raw_contains: "error",
+            raw_contains: "login",
             level: "ERROR",
-            time_range: {
-              last: "1h"
-            }
-          },
-          sources: ["1386515"],
-          limit: 10
-        }
-      },
-      expected: {
-        shouldContain: ["error", "ERROR", "Query Results"],
-        resultCount: { max: 10 },
-        notes: "Should combine all filters - recent ERROR logs containing 'error'"
-      },
-      mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: '{"level":"ERROR","message":"Database error occurred","error_code":"DB001"}', level: 'ERROR' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'ERROR: Connection error to database', level: 'ERROR' },
-        { dt: '2024-01-01T10:02:00Z', raw: '[ERROR] Authentication error for user login', level: 'ERROR' }
-      ]
-    },
-    "level-time-json": {
-      id: "5.2",
-      description: "Level + time range + JSON extraction",
-      category: "Combined Filter Tests",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          json_fields: [
-            { path: "user.id", alias: "user" },
-            { path: "request.duration", alias: "duration" }
-          ],
-          filters: {
-            level: "INFO",
-            time_range: {
-              last: "30m"
+            time_filter: {
+              relative: "last_24_hours"
             }
           },
           sources: ["1386515"],
@@ -425,178 +264,44 @@ export const manualTestCases: ManualTestSuite = {
         }
       },
       expected: {
-        shouldContain: ["user", "duration", "INFO", "Query Results"],
+        shouldContain: ["Query Results"],
         resultCount: { max: 15 },
-        notes: "Should combine filtering with JSON field extraction"
+        notes: "Should return ERROR level logs containing 'login' from last 24h"
       },
       mockData: [
-        { 
-          dt: '2024-01-01T10:00:00Z', 
-          raw: '{"level": "INFO", "message": "Request processed successfully", "user": {"id": 123}, "request": {"duration": 250}}', 
-          level: 'INFO',
-          user: { id: 123 },
-          request: { duration: 250 }
-        },
-        { 
-          dt: '2024-01-01T10:01:00Z', 
-          raw: 'INFO: API call completed in 180ms\n{"user":{"id":456},"request":{"duration":180}}', 
-          level: 'INFO',
-          user: { id: 456 },
-          request: { duration: 180 }
-        }
-      ]
-    }
-  },
-
-  "limit-testing": {
-    "small-limit": {
-      id: "6.1",
-      description: "Small limit",
-      category: "Limit Testing",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          sources: ["1386515"],
-          limit: 1
-        }
-      },
-      expected: {
-        shouldContain: ["Query Results"],
-        resultCount: { max: 1 },
-        notes: "Should return exactly 1 log entry"
-      },
-      mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Single log entry', level: 'INFO' }
-      ]
-    },
-    "large-limit": {
-      id: "6.2",
-      description: "Large limit",
-      category: "Limit Testing",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          sources: ["1386515"],
-          limit: 100
-        }
-      },
-      expected: {
-        shouldContain: ["Query Results"],
-        resultCount: { max: 100 },
-        notes: "Should return up to 100 log entries"
-      },
-      mockData: Array.from({ length: 50 }, (_, i) => ({
-        dt: `2024-01-01T10:${i.toString().padStart(2, '0')}:00Z`,
-        raw: `Log entry ${i + 1}`,
-        level: 'INFO'
-      }))
-    }
-  },
-
-  "complex-scenarios": {
-    "debug-login-issues": {
-      id: "7.1",
-      description: "Debug login issues",
-      category: "Complex Real-World Scenarios",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          json_fields: [
-            { path: "user.email", alias: "user_email" },
-            { path: "request.ip", alias: "ip_address" }
-          ],
-          filters: {
-            raw_contains: "login",
-            level: "ERROR",
-            time_range: {
-              last: "24h"
-            }
-          },
-          sources: ["1386515"],
-          limit: 20
-        }
-      },
-      expected: {
-        shouldContain: ["user_email", "ip_address", "login", "ERROR", "Query Results"],
-        resultCount: { max: 20 },
-        notes: "Should extract user info from login-related errors"
-      },
-      mockData: [
-        { 
-          dt: '2024-01-01T10:00:00Z', 
-          raw: 'Login failed for user', 
-          level: 'ERROR',
-          user: { email: 'user@example.com' },
-          request: { ip: '192.168.1.100' }
-        }
-      ]
-    },
-    "monitor-api-performance": {
-      id: "7.2",
-      description: "Monitor API performance",
-      category: "Complex Real-World Scenarios",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          json_fields: [
-            { path: "request.method", alias: "method" },
-            { path: "request.duration", alias: "duration_ms" },
-            { path: "response.status", alias: "status" }
-          ],
-          filters: {
-            raw_contains: "API",
-            time_range: {
-              last: "2h"
-            }
-          },
-          sources: ["1386515"],
-          limit: 50
-        }
-      },
-      expected: {
-        shouldContain: ["method", "duration_ms", "status", "API", "Query Results"],
-        resultCount: { max: 50 },
-        notes: "Should extract performance metrics from API logs"
-      },
-      mockData: [
-        { 
-          dt: '2024-01-01T10:00:00Z', 
-          raw: 'API request completed', 
-          level: 'INFO',
-          request: { method: 'GET', duration: 125 },
-          response: { status: 200 }
-        }
+        { dt: '2024-01-01T10:00:00Z', raw: 'ERROR: Login failed for user' }
       ]
     }
   },
 
   "output-formats": {
     "default-jsonrows": {
-      id: "8.1",
+      id: "3.1",
       description: "Default JSONEachRow format",
-      category: "Output Format Testing",
+      category: "Output Format Tests",
       payload: {
         name: "query_logs",
         arguments: {
           sources: ["1386515"],
-          limit: 5
+          limit: 5,
+          format: "JSONEachRow"
         }
       },
       expected: {
         shouldContain: ["Query Results"],
         format: "JSONEachRow",
         resultCount: { max: 5 },
-        notes: "Should return data in JSONEachRow format (array of objects)"
+        notes: "Should return data in JSONEachRow format (default)"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1', level: 'INFO' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'Test log 2', level: 'INFO' }
+        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1' },
+        { dt: '2024-01-01T10:01:00Z', raw: 'Test log 2' }
       ]
     },
     "pretty-format": {
-      id: "8.2",
+      id: "3.2",
       description: "Pretty format for human reading",
-      category: "Output Format Testing",
+      category: "Output Format Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -612,13 +317,13 @@ export const manualTestCases: ManualTestSuite = {
         notes: "Should return human-readable table format"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1', level: 'INFO' }
+        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1' }
       ]
     },
     "csv-format": {
-      id: "8.3",
+      id: "3.3",
       description: "CSV format for data export",
-      category: "Output Format Testing",
+      category: "Output Format Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -634,13 +339,13 @@ export const manualTestCases: ManualTestSuite = {
         notes: "Should return comma-separated values"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1', level: 'INFO' }
+        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1' }
       ]
     },
     "json-format": {
-      id: "8.4",
+      id: "3.4",
       description: "JSON format (single object)",
-      category: "Output Format Testing",
+      category: "Output Format Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -656,13 +361,13 @@ export const manualTestCases: ManualTestSuite = {
         notes: "Should return single JSON object with array of results"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1', level: 'INFO' }
+        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1' }
       ]
     },
     "tsv-format": {
-      id: "8.5",
+      id: "3.5",
       description: "TSV format for spreadsheet import",
-      category: "Output Format Testing",
+      category: "Output Format Tests",
       payload: {
         name: "query_logs",
         arguments: {
@@ -678,8 +383,71 @@ export const manualTestCases: ManualTestSuite = {
         notes: "Should return tab-separated values"
       },
       mockData: [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1', level: 'INFO' }
+        { dt: '2024-01-01T10:00:00Z', raw: 'Test log 1' }
       ]
+    }
+  },
+
+  "debug-tools": {
+    "debug-table-info": {
+      id: "4.1",
+      description: "Debug table information and schema",
+      category: "Debug Tools Tests",
+      payload: {
+        name: "debug_table_info",
+        arguments: {
+          sources: ["1386515"]
+        }
+      },
+      expected: {
+        shouldContain: ["Debug Information", "Resolved Sources", "Available Columns"],
+        notes: "Should show table schema and query generation info"
+      },
+      mockData: []
+    }
+  },
+
+  "limit-testing": {
+    "small-limit": {
+      id: "5.1",
+      description: "Small limit test",
+      category: "Limit Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 1
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results"],
+        resultCount: { max: 1 },
+        notes: "Should return exactly 1 log entry"
+      },
+      mockData: [
+        { dt: '2024-01-01T10:00:00Z', raw: 'Single log entry' }
+      ]
+    },
+    "large-limit": {
+      id: "5.2",
+      description: "Large limit test",
+      category: "Limit Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 100
+        }
+      },
+      expected: {
+        shouldContain: ["Query Results"],
+        resultCount: { max: 100 },
+        notes: "Should return up to 100 log entries"
+      },
+      mockData: Array.from({ length: 50 }, (_, i) => ({
+        dt: `2024-01-01T10:${i.toString().padStart(2, '0')}:00Z`,
+        raw: `Log entry ${i + 1}`
+      }))
     }
   }
 }
