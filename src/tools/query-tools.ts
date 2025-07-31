@@ -18,7 +18,6 @@ export interface StructuredQueryParams {
   };
   limit: number;
   dataType?: 'recent' | 'historical' | 'metrics' | 'union';
-  format?: ClickHouseFormat;
 }
 
 // Setup logging using shared utility
@@ -31,7 +30,7 @@ const logToFile = createLogger(import.meta.url, 'QUERY-TOOLS');
  * Always queries 'dt' (timestamp) and 'raw' (log message) fields
  */
 export async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
-  const { filters, limit, dataType, format = 'JSONEachRow' } = params;
+  const { filters, limit, dataType } = params;
   
   // 1. Validate parameters
   validateQueryParams(params);
@@ -97,12 +96,8 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
   // 7. Add LIMIT
   query += ` LIMIT ${limit}`;
   
-  // 8. Add FORMAT clause and SETTINGS for JSONEachRow
-  if (format === 'JSONEachRow') {
-    query += ` SETTINGS output_format_json_array_of_rows = 1 FORMAT ${format}`;
-  } else {
-    query += ` FORMAT ${format}`;
-  }
+  // 8. Add FORMAT clause - always use JSONEachRow with array output
+  query += ` SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
   
   logToFile('DEBUG', 'Generated structured query', { 
     params, 
@@ -471,13 +466,11 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       sources: z.array(z.string()).optional().describe("Specific source IDs or names to query (optional)"),
       source_group: z.string().optional().describe("Source group name to query (optional)"),
       
-      // OUTPUT FORMAT - How to format the results
-      format: z.enum(['JSON', 'JSONEachRow', 'Pretty', 'CSV', 'TSV']).default('JSONEachRow').describe("Output format for query results. JSONEachRow is best for programmatic access, Pretty for human reading, CSV/TSV for data export")
     },
-    async ({ filters, limit, sources, source_group, format }) => {
+    async ({ filters, limit, sources, source_group }) => {
       try {
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          filters, limit, sources, source_group, format 
+          filters, limit, sources, source_group 
         });
         
         // Step 1: Determine data type automatically based on time filters
@@ -503,8 +496,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         const query = await buildStructuredQuery({
           filters,
           limit,
-          dataType,
-          format
+          dataType
         });
 
         logToFile('INFO', 'Generated SQL query', { query });

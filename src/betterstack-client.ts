@@ -1209,8 +1209,10 @@ export class BetterstackClient {
       };
     });
 
-    // Execute queries in parallel
-    const queryPromises = sourceQueries.map(async ({ source, query: sourceQuery, timeRangeParams }) => {
+    // Execute queries sequentially to avoid rate limits
+    const sourceResults = [];
+    
+    for (const { source, query: sourceQuery, timeRangeParams } of sourceQueries) {
       let requestUrl = "/";
       let finalQuery = sourceQuery;
       
@@ -1265,11 +1267,11 @@ export class BetterstackClient {
           firstFewRows: response.data?.data?.slice(0, 2) || [],
         });
 
-        return {
+        sourceResults.push({
           source: source.name,
           success: true,
           data: response.data,
-        };
+        });
       } catch (error) {
         logToFile("ERROR", "Failed to query source", {
           sourceName: source.name,
@@ -1283,23 +1285,13 @@ export class BetterstackClient {
           responseData: (error as any)?.response?.data,
         });
 
-        return {
+        sourceResults.push({
           source: source.name,
           success: false,
           error: error instanceof Error ? error.message : String(error),
-        };
+        });
       }
-    });
-
-    // Wait for all requests to complete
-    const results = await Promise.allSettled(queryPromises);
-    const sourceResults = results.map(result => 
-      result.status === "fulfilled" ? result.value : {
-        source: "unknown",
-        success: false,
-        error: result.reason,
-      }
-    );
+    }
 
     // Process results
     const successfulResults = sourceResults.filter(r => r.success);

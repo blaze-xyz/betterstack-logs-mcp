@@ -594,8 +594,8 @@ describe('buildStructuredQuery Function', () => {
     })
   })
 
-  describe('Output Format Support', () => {
-    it('should default to JSONEachRow format with SETTINGS', async () => {
+  describe('Output Format', () => {
+    it('should always use JSONEachRow format with SETTINGS', async () => {
       const params: StructuredQueryParams = {
         limit: 10
       }
@@ -604,57 +604,7 @@ describe('buildStructuredQuery Function', () => {
       expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
     })
 
-    it('should explicitly use JSONEachRow format with SETTINGS', async () => {
-      const params: StructuredQueryParams = {
-        limit: 10,
-        format: 'JSONEachRow'
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow')
-    })
-
-    it('should use JSON format without SETTINGS', async () => {
-      const params: StructuredQueryParams = {
-        limit: 10,
-        format: 'JSON'
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 FORMAT JSON')
-    })
-
-    it('should use Pretty format without SETTINGS', async () => {
-      const params: StructuredQueryParams = {
-        limit: 10,
-        format: 'Pretty'
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 FORMAT Pretty')
-    })
-
-    it('should use CSV format without SETTINGS', async () => {
-      const params: StructuredQueryParams = {
-        limit: 10,
-        format: 'CSV'
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 FORMAT CSV')
-    })
-
-    it('should use TSV format without SETTINGS', async () => {
-      const params: StructuredQueryParams = {
-        limit: 10,
-        format: 'TSV'
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 FORMAT TSV')
-    })
-
-    it('should combine format with filters (no JSON extraction)', async () => {
+    it('should use JSONEachRow format with filters', async () => {
       const params: StructuredQueryParams = {
         filters: {
           raw_contains: 'error',
@@ -662,26 +612,24 @@ describe('buildStructuredQuery Function', () => {
             relative: 'last_60_minutes'
           }
         },
-        limit: 25,
-        format: 'Pretty'
+        limit: 25
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%error%') AND dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 25 FORMAT Pretty")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%error%') AND dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 25 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
-    it('should work with historical data type and CSV format (no _row_type in outer query)', async () => {
+    it('should use JSONEachRow format with historical data type', async () => {
       const params: StructuredQueryParams = {
         dataType: 'historical',
         filters: {
           level: 'ERROR'
         },
-        limit: 50,
-        format: 'CSV'
+        limit: 50
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 50 FORMAT CSV")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
   })
 })

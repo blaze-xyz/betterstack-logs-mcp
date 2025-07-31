@@ -28,7 +28,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         limit: 2
       })
 
@@ -52,7 +51,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         filters: { raw_contains: 'API' },
         sources: ['1021716'], // Production API Server ID
         limit: 1
@@ -78,7 +76,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         source_group: 'Development Environment'
       })
 
@@ -97,7 +94,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         filters: { raw_contains: 'nonexistent' },
         limit: 10
       })
@@ -120,8 +116,14 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
-        filters: { time_range: { start: '2024-01-01' } }
+        filters: { 
+          time_filter: { 
+            custom: { 
+              start_datetime: '2024-01-01', 
+              end_datetime: '2024-01-02' 
+            } 
+          } 
+        }
       })
 
       expect(result).toHaveProperty('content')
@@ -143,7 +145,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'json'],
         limit: 2
       })
 
@@ -168,7 +169,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['invalid_field']
+        filters: { raw_contains: 'invalid' }
       })
 
       expect(result).toHaveProperty('content')
@@ -185,7 +186,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         limit: 1
       })
 
@@ -207,7 +207,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         limit: 2
       })
 
@@ -238,7 +237,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw', 'json'],
         filters: { raw_contains: 'User action' },
         limit: 1
       })
@@ -263,7 +261,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         limit: 15
       })
 
@@ -288,7 +285,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         sources: ['Production API Server', 'Frontend Application'],
         limit: 10
       })
@@ -336,7 +332,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw', 'json'],
         limit: 1
       })
 
@@ -362,7 +357,6 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        fields: ['dt', 'raw'],
         limit: 1
       })
 
