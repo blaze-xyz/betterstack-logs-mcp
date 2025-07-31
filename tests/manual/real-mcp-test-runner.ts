@@ -33,10 +33,13 @@ export interface TestRunSummary {
 export class RealMcpTestRunner {
   private mcpServerUrl: string = 'http://localhost:3000/mcp'
   private sessionId: string = ''
+  private logFileTimestamp: string = ''
   
   constructor() {
     // Session ID will be assigned by the server during initialization
     this.sessionId = ''
+    // Create a single timestamp for all logs in this test run
+    this.logFileTimestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
   }
 
   private async initializeSession(): Promise<void> {
@@ -337,7 +340,10 @@ export class RealMcpTestRunner {
     const countPatterns = [
       /(\d+)\s+results?/i,
       /found\s+(\d+)/i,
-      /total[:\s]+(\d+)/i
+      /total[:\s]+(\d+)/i,
+      /Available Log Sources \((\d+)\)/i,  // For source lists
+      /Available Source Groups \((\d+)\)/i, // For source group lists
+      /\((\d+)\):/i  // General pattern for counts in parentheses
     ]
     
     for (const pattern of countPatterns) {
@@ -347,15 +353,21 @@ export class RealMcpTestRunner {
       }
     }
     
-    // Count lines that look like results
+    // Count lines that look like results (for logs)
     const lines = responseText.split('\n')
-    const resultLines = lines.filter(line => 
+    const logResultLines = lines.filter(line => 
       line.includes('dt:') || 
       line.includes('raw:') || 
       line.includes('level:')
     ).length
     
-    return resultLines
+    // Count source entries (lines starting with bullet points and containing ID:)
+    const sourceLines = lines.filter(line => 
+      (line.trim().startsWith('•') || line.trim().startsWith('-')) && 
+      line.includes('ID:')
+    ).length
+    
+    return Math.max(logResultLines, sourceLines)
   }
 
   private logMcpPayload(testCase: ManualTestCase, jsonRpcPayload: any): void {
@@ -363,8 +375,7 @@ export class RealMcpTestRunner {
       const logsDir = path.join(process.cwd(), 'dist', 'logs', 'manual-tests')
       fs.mkdirSync(logsDir, { recursive: true })
       
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
-      const payloadLogPath = path.join(logsDir, `${timestamp}_real_mcp_payloads.log`)
+      const payloadLogPath = path.join(logsDir, `${this.logFileTimestamp}_real_mcp_payloads.log`)
       
       const logLine = `\n${'='.repeat(80)}\n` +
                      `[REQUEST] ${testCase.id}: ${testCase.description}\n` +
@@ -391,14 +402,32 @@ export class RealMcpTestRunner {
   private logMcpResponse(testCase: ManualTestCase, response: any): void {
     try {
       const logsDir = path.join(process.cwd(), 'dist', 'logs', 'manual-tests')
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
-      const payloadLogPath = path.join(logsDir, `${timestamp}_real_mcp_payloads.log`)
+      const payloadLogPath = path.join(logsDir, `${this.logFileTimestamp}_real_mcp_payloads.log`)
+      
+      // Parse SSE response if it's a string
+      let parsedResponse = response
+      let formattedResponse = JSON.stringify(response, null, 2)
+      
+      if (typeof response === 'string' && response.includes('data: {')) {
+        try {
+          // Extract JSON from SSE format
+          const dataMatch = response.match(/data: ({.*})/s)
+          if (dataMatch) {
+            parsedResponse = JSON.parse(dataMatch[1])
+            formattedResponse = JSON.stringify(parsedResponse, null, 2)
+          }
+        } catch (parseError) {
+          // If parsing fails, just use the original string but clean it up
+          formattedResponse = response.replace(/\\n/g, '\n').replace(/\\"/g, '"')
+        }
+      }
       
       const logLine = `${'='.repeat(80)}\n` +
                      `[RESPONSE] ${testCase.id}: ${testCase.description}\n` +
                      `${'='.repeat(80)}\n` +
-                     `HTTP Response:\n${JSON.stringify(response, null, 2)}\n\n` +
-                     `Response Content:\n${response?.result?.content?.[0]?.text || response?.content?.[0]?.text || 'No text content'}\n\n`
+                     `Raw HTTP Response:\n${response}\n\n` +
+                     `Parsed JSON Response:\n${formattedResponse}\n\n` +
+                     `Response Content:\n${parsedResponse?.result?.content?.[0]?.text || parsedResponse?.content?.[0]?.text || 'No text content'}\n\n`
       
       fs.appendFileSync(payloadLogPath, logLine)
     } catch (error) {
@@ -409,8 +438,7 @@ export class RealMcpTestRunner {
   private logMcpError(testCase: ManualTestCase, error: any): void {
     try {
       const logsDir = path.join(process.cwd(), 'dist', 'logs', 'manual-tests')
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
-      const payloadLogPath = path.join(logsDir, `${timestamp}_real_mcp_payloads.log`)
+      const payloadLogPath = path.join(logsDir, `${this.logFileTimestamp}_real_mcp_payloads.log`)
       
       const logLine = `${'='.repeat(80)}\n` +
                      `[ERROR] ${testCase.id}: ${testCase.description}\n` +
@@ -461,10 +489,9 @@ export class RealMcpTestRunner {
   private saveSummaryLogs(summary: TestRunSummary): void {
     try {
       const logsDir = path.join(process.cwd(), 'dist', 'logs', 'manual-tests')
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19)
       
       // Save detailed log
-      const logPath = path.join(logsDir, `${timestamp}_real_mcp_detailed.log`)
+      const logPath = path.join(logsDir, `${this.logFileTimestamp}_real_mcp_detailed.log`)
       let logContent = `Real MCP Server Test Execution Log\n`
       logContent += `================================================================================\n`
       logContent += `Server URL: ${this.mcpServerUrl}\n`
@@ -504,8 +531,8 @@ export class RealMcpTestRunner {
       fs.writeFileSync(logPath, logContent)
       
       console.log(`\n📝 Test results logged to: ${logsDir}`)
-      console.log(`   • Real MCP detailed log: ${timestamp}_real_mcp_detailed.log`)
-      console.log(`   • Real MCP payloads log: ${timestamp}_real_mcp_payloads.log`)
+      console.log(`   • Real MCP detailed log: ${this.logFileTimestamp}_real_mcp_detailed.log`)
+      console.log(`   • Real MCP payloads log: ${this.logFileTimestamp}_real_mcp_payloads.log`)
       
     } catch (error) {
       console.warn('Failed to save summary logs:', error)

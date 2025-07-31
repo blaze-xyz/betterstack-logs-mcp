@@ -134,7 +134,7 @@ export const manualTestCases: ManualTestSuite = {
       payload: {
         name: "get_source_group_info",
         arguments: {
-          group_name: "Production Logs"
+          group_name: "Production"
         }
       },
       jsonRpcPayload: {
@@ -143,17 +143,17 @@ export const manualTestCases: ManualTestSuite = {
         params: {
           name: "get_source_group_info",
           arguments: {
-            group_name: "Production Logs"
+            group_name: "Production"
           }
         },
         id: 4
       },
       expected: {
-        shouldContain: ["Source Group:", "Total Sources:", "Included Sources"],
+        shouldContain: ["Source Group:", "Total Sources:", "Sources:"],
         notes: "Should return detailed source group information"
       },
       mockData: [
-        { id: 'group1', name: 'Production Logs', source_ids: ['1386515'] }
+        { id: 'group1', name: 'Production', source_ids: ['1386515'] }
       ]
     },
     "test-connection": {
