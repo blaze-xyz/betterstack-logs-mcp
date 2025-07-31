@@ -40,9 +40,15 @@ function extractTimeRangeParams(
       custom?: { start_datetime?: string; end_datetime?: string };
     };
   },
-  sources?: (Source & { table_name: string })[]
+  sources?: (Source & { table_name: string })[],
+  dataType?: DataSourceType
 ): TimeRangeParams | null {
   if (!rawFilters?.time_filter || !sources?.length) {
+    return null;
+  }
+
+  // For multi-source historical queries, return null to trigger per-source optimization
+  if (dataType === "historical" && sources.length > 1) {
     return null;
   }
 
@@ -88,8 +94,8 @@ function extractTimeRangeParams(
     result.rangeTo = endDate.getTime().toString();
   }
 
-  // Extract table name from first source
-  if (sources[0]) {
+  // For single source historical queries, include table optimization
+  if (dataType === "historical" && sources[0]) {
     const source = sources[0];
     const teamId = (source as any).team_id;
     const tableName = (source as any).table_name;
@@ -779,6 +785,17 @@ export class BetterstackClient {
     }
 
     try {
+      // Route to appropriate execution strategy based on query characteristics
+      // Multi-source historical queries use per-source optimization with merging
+      if (dataType === "historical" && sources.length > 1 && options.rawFilters) {
+        logToFile("INFO", "Routing to multi-source historical query optimization", {
+          sourcesCount: sources.length,
+          sourceNames: sources.map(s => s.name),
+        });
+        
+        return await this.executeMultiSourceHistoricalQuery(originalQuery, sources, options);
+      }
+
       // Extract time range parameters for s3 optimization on historical queries
       let requestUrl = "/";
       let urlParams: URLSearchParams | null = null;
@@ -786,7 +803,8 @@ export class BetterstackClient {
       if (dataType === "historical" && options.rawFilters) {
         const timeRangeParams = extractTimeRangeParams(
           options.rawFilters,
-          sources
+          sources,
+          dataType
         );
 
         logToFile("DEBUG", "Processing historical query optimization", {
@@ -1155,6 +1173,172 @@ export class BetterstackClient {
       console.error("ClickHouse query execution failed:", error);
       throw error;
     }
+  }
+
+  /**
+   * Execute multi-source historical queries with per-source optimization
+   * Each source gets its own optimized request with S3 glob interpolation
+   */
+  private async executeMultiSourceHistoricalQuery(
+    query: string,
+    sources: (Source & { table_name: string })[],
+    options: QueryOptions = {}
+  ): Promise<QueryResult> {
+    logToFile("INFO", "Executing multi-source historical query with per-source optimization", {
+      sourcesCount: sources.length,
+      sourceNames: sources.map(s => s.name),
+    });
+
+    // Generate individual queries for each source
+    const sourceQueries = sources.map(source => {
+      // Build single-source query
+      const singleSourceQuery = this.buildMultiSourceQuery(query, [source], "historical");
+      
+      // Generate time range params for this specific source
+      const timeRangeParams = extractTimeRangeParams(
+        options.rawFilters,
+        [source],
+        "historical"
+      );
+
+      return {
+        source,
+        query: singleSourceQuery,
+        timeRangeParams,
+      };
+    });
+
+    // Execute queries in parallel
+    const queryPromises = sourceQueries.map(async ({ source, query: sourceQuery, timeRangeParams }) => {
+      try {
+        let requestUrl = "/";
+        if (timeRangeParams) {
+          const urlParams = new URLSearchParams();
+          if (timeRangeParams.table) {
+            urlParams.append("table", timeRangeParams.table);
+          }
+          if (timeRangeParams.rangeFrom) {
+            urlParams.append("range-from", timeRangeParams.rangeFrom);
+          }
+          if (timeRangeParams.rangeTo) {
+            urlParams.append("range-to", timeRangeParams.rangeTo);
+          }
+          requestUrl = `/?${urlParams.toString()}`;
+        }
+
+        // Apply JSON format for API call
+        let finalQuery = sourceQuery;
+        if (!finalQuery.toLowerCase().includes("format")) {
+          finalQuery += " FORMAT JSON";
+        } else {
+          finalQuery = finalQuery.replace(/\s+FORMAT\s+\w+(\s|$)/gi, ' FORMAT JSON');
+        }
+
+        logToFile("INFO", "Making optimized request for source", {
+          sourceName: source.name,
+          requestUrl,
+          queryLength: finalQuery.length,
+        });
+
+        const response = await BetterstackClient.rateLimiter(() =>
+          this.queryClient.post(requestUrl, finalQuery)
+        );
+
+        return {
+          source: source.name,
+          success: true,
+          data: response.data,
+        };
+      } catch (error) {
+        logToFile("ERROR", "Failed to query source", {
+          sourceName: source.name,
+          error: error instanceof Error ? error.message : String(error),
+        });
+
+        return {
+          source: source.name,
+          success: false,
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    });
+
+    // Wait for all requests to complete
+    const results = await Promise.allSettled(queryPromises);
+    const sourceResults = results.map(result => 
+      result.status === "fulfilled" ? result.value : {
+        source: "unknown",
+        success: false,
+        error: result.reason,
+      }
+    );
+
+    // Process results
+    const successfulResults = sourceResults.filter(r => r.success);
+    const failedResults = sourceResults.filter(r => !r.success);
+
+    logToFile("INFO", "Multi-source query results", {
+      totalSources: sources.length,
+      successfulSources: successfulResults.length,
+      failedSources: failedResults.length,
+      successfulSourceNames: successfulResults.map(r => r.source),
+      failedSourceNames: failedResults.map(r => r.source),
+    });
+
+    if (successfulResults.length === 0) {
+      throw new Error(`All sources failed: ${failedResults.map(r => `${r.source}: ${r.error}`).join(", ")}`);
+    }
+
+    // Merge and deduplicate results
+    const allRows: any[] = [];
+    const seenCombinations = new Set<string>();
+
+    for (const result of successfulResults) {
+      if (result.success && (result as any).data?.data) {
+        for (const row of (result as any).data.data) {
+          // Create unique key for deduplication (dt + raw combination)
+          const uniqueKey = `${row.dt}:${row.raw}`;
+          if (!seenCombinations.has(uniqueKey)) {
+            seenCombinations.add(uniqueKey);
+            allRows.push(row);
+          }
+        }
+      }
+    }
+
+    // Sort by timestamp (dt) in descending order (most recent first)
+    allRows.sort((a, b) => {
+      const dateA = new Date(a.dt).getTime();
+      const dateB = new Date(b.dt).getTime();
+      return dateB - dateA;
+    });
+
+    // Apply limit if specified
+    const finalRows = options.limit ? allRows.slice(0, options.limit) : allRows;
+
+    logToFile("INFO", "Multi-source query merge completed", {
+      totalRowsBeforeDedup: successfulResults.reduce((sum, r) => sum + ((r as any).data?.data?.length || 0), 0),
+      uniqueRowsAfterDedup: allRows.length,
+      finalRowsAfterLimit: finalRows.length,
+      limit: options.limit,
+    });
+
+    // Return in same format as single-source queries
+    return {
+      data: finalRows,
+      meta: {
+        total_rows: finalRows.length,
+        sources_queried: successfulResults.map(r => r.source),
+        api_used: "multi-source-optimized",
+        ...(failedResults.length > 0 && {
+          _failedSources: failedResults.map(r => ({ source: r.source, error: r.error }))
+        } as any),
+        _multiSourceStats: {
+          successfulSources: successfulResults.length,
+          totalSources: sources.length,
+        },
+      } as any,
+    };
   }
 
   private async resolveSources(options: QueryOptions): Promise<Source[]> {

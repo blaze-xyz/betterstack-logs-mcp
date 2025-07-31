@@ -351,7 +351,10 @@ export class ManualTestRunner {
       /(\d+) rows? returned/i,
       /showing (\d+) results?/i,
       /found (\d+) entries?/i,
-      /and (\d+) more rows/i
+      /and (\d+) more rows/i,
+      /Available Log Sources \((\d+)\):/i,
+      /Source Groups \((\d+)\):/i,
+      /Total Sources: (\d+)/i
     ]
     
     for (const pattern of patterns) {
@@ -432,6 +435,7 @@ export class ManualTestRunner {
       }
       
       const logLine = `\n${'='.repeat(80)}\n` +
+                     `TEST ID: ${testCase.id}\n` +
                      `[REQUEST] ${testCase.id}: ${testCase.description}\n` +
                      `${'='.repeat(80)}\n` +
                      `MCP Payload:\n${JSON.stringify(testCase.payload, null, 2)}\n\n` +
@@ -453,6 +457,7 @@ export class ManualTestRunner {
       const payloadLogPath = path.join(logsDir, `${timestamp}_mcp_payloads.log`)
       
       const logLine = `${'='.repeat(80)}\n` +
+                     `TEST ID: ${testCase.id}\n` +
                      `[RESPONSE] ${testCase.id}: ${testCase.description}\n` +
                      `${'='.repeat(80)}\n` +
                      `Response:\n${JSON.stringify(response, null, 2)}\n\n` +

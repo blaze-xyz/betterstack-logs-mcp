@@ -480,7 +480,7 @@ export const manualTestCases: ManualTestSuite = {
     },
     "complex-multi-filter-historical": {
       id: "3.5",
-      description: "Complex multi-filter historical query across three sources (July 15, 2025)",
+      description: "Complex multi-filter historical query across three sources (July 28-29, 2025)",
       category: "Multi-Source Log Querying Tests",
       payload: {
         name: "query_logs",
@@ -488,8 +488,8 @@ export const manualTestCases: ManualTestSuite = {
           filters: {
             time_filter: {
               custom: {
-                start_datetime: "2025-07-15T12:30:00Z",
-                end_datetime: "2025-07-15T18:45:00Z"
+                start_datetime: "2025-07-28T12:30:00Z",
+                end_datetime: "2025-07-29T18:45:00Z"
               }
             },
             raw_contains: "timeout",
@@ -508,8 +508,8 @@ export const manualTestCases: ManualTestSuite = {
             filters: {
               time_filter: {
                 custom: {
-                  start_datetime: "2025-07-15T12:30:00Z",
-                  end_datetime: "2025-07-15T18:45:00Z"
+                  start_datetime: "2025-07-28T12:30:00Z",
+                  end_datetime: "2025-07-29T18:45:00Z"
                 }
               },
               raw_contains: "timeout",
@@ -526,21 +526,84 @@ export const manualTestCases: ManualTestSuite = {
           "Query Results",
           "Sources queried:",
           "s3Cluster(primary,",
-          "parseDateTime64BestEffort('2025-07-15T12:30:00Z')",
-          "parseDateTime64BestEffort('2025-07-15T18:45:00Z')",
+          "parseDateTime64BestEffort('2025-07-28T12:30:00Z')",
+          "parseDateTime64BestEffort('2025-07-29T18:45:00Z')",
           "ilike(raw, '%timeout%')",
           "ilike(raw, '%\"level\":\"warn\"%')",
-          "range-from=1721044200000",
-          "range-to=1721066700000"
+          "range-from=1753705800000",
+          "range-to=1753814700000"
         ],
         shouldNotContain: ["remote("],
         resultCount: { max: 200 },
         notes: "Should use historical s3Cluster queries across all three sources with complex filtering and URL optimization parameters"
       },
       mockData: [
-        { dt: '2025-07-15T13:00:00Z', raw: 'WARN: Database connection timeout detected in production environment' },
-        { dt: '2025-07-15T15:30:00Z', raw: 'WARN: API request timeout - external service slow to respond' },
-        { dt: '2025-07-15T17:45:00Z', raw: 'WARN: Cache timeout occurred during high traffic period' }
+        { dt: '2025-07-28T13:00:00Z', raw: 'WARN: Database connection timeout detected in production environment' },
+        { dt: '2025-07-28T15:30:00Z', raw: 'WARN: API request timeout - external service slow to respond' },
+        { dt: '2025-07-29T17:45:00Z', raw: 'WARN: Cache timeout occurred during high traffic period' }
+      ]
+    },
+    "multi-source-optimization-test": {
+      id: "3.6",
+      description: "Test multi-source historical query optimization (with same source ID duplicated)",
+      category: "Multi-Source Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            time_filter: {
+              custom: {
+                start_datetime: "2025-07-28T12:30:00Z",
+                end_datetime: "2025-07-29T18:45:00Z"
+              }
+            },
+            raw_contains: "production",
+            level: "ERROR"
+          },
+          sources: ["1386515", "1386515"],  // Same source ID to trigger multi-source logic
+          limit: 50
+        }
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "query_logs",
+          arguments: {
+            filters: {
+              time_filter: {
+                custom: {
+                  start_datetime: "2025-07-28T12:30:00Z",
+                  end_datetime: "2025-07-29T18:45:00Z"
+                }
+              },
+              raw_contains: "production",
+              level: "ERROR"
+            },
+            sources: ["1386515", "1386515"],
+            limit: 50
+          }
+        },
+        id: 36
+      },
+      expected: {
+        shouldContain: [
+          "Query Results",
+          "s3Cluster(primary,",
+          "parseDateTime64BestEffort('2025-07-28T12:30:00Z')",
+          "parseDateTime64BestEffort('2025-07-29T18:45:00Z')",
+          "ilike(raw, '%production%')",
+          "ilike(raw, '%\"level\":\"error\"%')",
+          "api_used: \"multi-source-optimized\""
+        ],
+        shouldNotContain: ["remote("],
+        resultCount: { max: 50 },
+        notes: "Should trigger multi-source historical optimization with per-source requests and merging"
+      },
+      mockData: [
+        { dt: '2025-07-28T13:00:00Z', raw: 'ERROR: Production database connection failed' },
+        { dt: '2025-07-28T15:30:00Z', raw: 'ERROR: Production API timeout in authentication service' },
+        { dt: '2025-07-29T17:45:00Z', raw: 'ERROR: Production cache service unavailable' }
       ]
     }
   },
