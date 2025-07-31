@@ -24,7 +24,7 @@ describe('List Sources Tool', () => {
         created_at: "2024-01-01T10:00:00Z",
         updated_at: "2024-01-15T10:00:00Z",
         source_group_id: 1,
-        table_name: "spark_staging_logs",
+        table_name: "spark_staging",
         team_id: 12345
       })
     })

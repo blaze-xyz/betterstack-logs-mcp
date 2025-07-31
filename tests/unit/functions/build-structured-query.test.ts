@@ -22,46 +22,6 @@ describe('buildStructuredQuery Function', () => {
     })
   })
 
-  describe('JSON Fields Extraction', () => {
-    it('should generate getJSON calls for json fields', async () => {
-      const params: StructuredQueryParams = {
-        jsonFields: [
-          { path: 'level' },
-          { path: 'message', alias: 'msg' }
-        ],
-        limit: 10
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'level') as level, getJSON(raw, 'message') as msg FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
-
-    it('should use default alias when not provided', async () => {
-      const params: StructuredQueryParams = {
-        jsonFields: [
-          { path: 'user.id' },
-          { path: 'request.method' }
-        ],
-        limit: 10
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
-
-    it('should handle complex nested JSON paths', async () => {
-      const params: StructuredQueryParams = {
-        jsonFields: [
-          { path: 'context.user.session.id', alias: 'session_id' },
-          { path: 'metadata.client.version' }
-        ],
-        limit: 10
-      }
-
-      const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'context.user.session.id') as session_id, getJSON(raw, 'metadata.client.version') as metadata_client_version FROM logs ORDER BY dt DESC LIMIT 10 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
-    })
-  })
 
   describe('Raw Log Filtering', () => {
     it('should generate raw_contains filter', async () => {
@@ -439,15 +399,11 @@ describe('buildStructuredQuery Function', () => {
   })
 
   describe('Complex Scenarios', () => {
-    it('should combine JSON fields extraction with filtering', async () => {
+    it('should handle combined filtering without JSON field extraction', async () => {
       const params: StructuredQueryParams = {
-        jsonFields: [
-          { path: 'user.id', alias: 'user_id' },
-          { path: 'request.method' },
-          { path: 'response.status_code', alias: 'status' }
-        ],
         filters: {
           level: 'ERROR',
+          raw_contains: 'api request',
           time_filter: {
             relative: 'last_6_hours'
           }
@@ -456,19 +412,16 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'user.id') as user_id, getJSON(raw, 'request.method') as request_method, getJSON(raw, 'response.status_code') as status FROM logs WHERE ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%api request%') AND ilike(raw, '%\"level\":\"error\"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 50 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
 
-    it('should handle no filters (fields and ordering only)', async () => {
+    it('should handle no filters (basic query with ordering only)', async () => {
       const params: StructuredQueryParams = {
-        jsonFields: [
-          { path: 'level' }
-        ],
         limit: 5
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'level') as level FROM logs ORDER BY dt DESC LIMIT 5 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
+      expect(query).toBe("SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 5 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow")
     })
   })
 
@@ -701,11 +654,8 @@ describe('buildStructuredQuery Function', () => {
       expect(query).toBe('SELECT dt, raw FROM logs ORDER BY dt DESC LIMIT 10 FORMAT TSV')
     })
 
-    it('should combine format with filters and JSON extraction', async () => {
+    it('should combine format with filters (no JSON extraction)', async () => {
       const params: StructuredQueryParams = {
-        jsonFields: [
-          { path: 'level', alias: 'log_level' }
-        ],
         filters: {
           raw_contains: 'error',
           time_filter: {
@@ -717,7 +667,7 @@ describe('buildStructuredQuery Function', () => {
       }
 
       const query = await buildStructuredQuery(params)
-      expect(query).toBe("SELECT dt, raw, getJSON(raw, 'level') as log_level FROM logs WHERE ilike(raw, '%error%') AND dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 25 FORMAT Pretty")
+      expect(query).toBe("SELECT dt, raw FROM logs WHERE ilike(raw, '%error%') AND dt >= now() - INTERVAL 60 MINUTE ORDER BY dt DESC LIMIT 25 FORMAT Pretty")
     })
 
     it('should work with historical data type and CSV format', async () => {

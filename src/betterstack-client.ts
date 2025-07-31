@@ -37,7 +37,7 @@ function extractTimeRangeParams(
   rawFilters?: {
     time_filter?: {
       relative?: string;
-      custom?: { start_datetime: string; end_datetime: string };
+      custom?: { start_datetime?: string; end_datetime?: string };
     };
   },
   sources?: (Source & { table_name: string })[]
@@ -63,8 +63,12 @@ function extractTimeRangeParams(
   // Handle custom time range
   if (timeFilter.custom) {
     try {
-      startDate = new Date(timeFilter.custom.start_datetime);
-      endDate = new Date(timeFilter.custom.end_datetime);
+      if (timeFilter.custom.start_datetime) {
+        startDate = new Date(timeFilter.custom.start_datetime);
+      }
+      if (timeFilter.custom.end_datetime) {
+        endDate = new Date(timeFilter.custom.end_datetime);
+      }
     } catch (e) {
       // If parsing fails, ignore
     }
@@ -481,7 +485,7 @@ export class BetterstackClient {
     };
   }
 
-  private buildMultiSourceQuery(
+  public buildMultiSourceQuery(
     baseQuery: string,
     sources: (Source & { table_name: string })[],
     dataType: DataSourceType = "recent"
@@ -567,97 +571,95 @@ export class BetterstackClient {
       return finalQuery;
     }
 
-    // Multi-source query using UNION ALL
-    const unionQueries = sources.map((source, index) => {
+    // Multi-source query using BetterStack's documented UNION ALL structure
+    // Build all table references that will be combined in the subquery
+    const tableReferences: string[] = [];
+    
+    // Determine if we need source identification (check if base query expects it)
+    const needsSourceId = sources.length > 1 && (
+      baseQuery.toLowerCase().includes('select dt, raw') ||
+      baseQuery.toLowerCase().includes('select *')
+    );
+    
+    sources.forEach((source, index) => {
       const teamId = (source as any).team_id;
       const tableName = (source as any).table_name;
-
-      let tableFunction: string;
+      const sourceId = needsSourceId ? `'${source.name}' as source, ` : '';
 
       if (dataType === "historical") {
         const s3TableName = `t${teamId}_${tableName}_s3`;
-        tableFunction = `s3Cluster(primary, ${s3TableName}, filename='{{_s3_glob_interpolate}}')`;
-        logToFile("DEBUG", `Multi-source historical query ${index + 1}`, {
+        tableReferences.push(`SELECT ${sourceId}dt, raw FROM s3Cluster(primary, ${s3TableName}, filename='{{_s3_glob_interpolate}}') WHERE _row_type = 1`);
+        logToFile("DEBUG", `Multi-source historical table ${index + 1}`, {
           source: source.name,
           teamId,
           tableName,
           s3TableName,
-          tableFunction,
+          includesSourceId: needsSourceId,
         });
       } else if (dataType === "metrics") {
         const metricsTableName = `t${teamId}_${tableName}_metrics`;
-        tableFunction = `remote(${metricsTableName})`;
-        logToFile("DEBUG", `Multi-source metrics query ${index + 1}`, {
+        tableReferences.push(`SELECT ${sourceId}dt, raw FROM remote(${metricsTableName})`);
+        logToFile("DEBUG", `Multi-source metrics table ${index + 1}`, {
           source: source.name,
           teamId,
           tableName,
           metricsTableName,
-          tableFunction,
+          includesSourceId: needsSourceId,
         });
       } else if (dataType === "union") {
-        // Union query: combine remote and s3Cluster tables
+        // Union data type: include both remote and s3Cluster for each source
         const logsTableName = `t${teamId}_${tableName}_logs`;
         const s3TableName = `t${teamId}_${tableName}_s3`;
-        tableFunction = `(SELECT dt, raw FROM remote(${logsTableName}) UNION ALL SELECT dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1)`;
-        logToFile("DEBUG", `Multi-source union query ${index + 1}`, {
+        tableReferences.push(`SELECT ${sourceId}dt, raw FROM remote(${logsTableName})`);
+        tableReferences.push(`SELECT ${sourceId}dt, raw FROM s3Cluster(primary, ${s3TableName}) WHERE _row_type = 1`);
+        logToFile("DEBUG", `Multi-source union tables ${index + 1}`, {
           source: source.name,
           teamId,
           tableName,
           logsTableName,
           s3TableName,
-          tableFunction,
+          includesSourceId: needsSourceId,
         });
       } else {
-        // Recent logs
+        // Recent logs only
         const logsTableName = `t${teamId}_${tableName}_logs`;
-        tableFunction = `remote(${logsTableName})`;
-        logToFile("DEBUG", `Multi-source recent logs query ${index + 1}`, {
+        tableReferences.push(`SELECT ${sourceId}dt, raw FROM remote(${logsTableName})`);
+        logToFile("DEBUG", `Multi-source recent table ${index + 1}`, {
           source: source.name,
           teamId,
           tableName,
           logsTableName,
-          tableFunction,
+          includesSourceId: needsSourceId,
         });
       }
-
-      const sourceQuery = baseQuery.replace(
-        /FROM\s+(logs|metrics|union_subquery)\b/gi,
-        `FROM ${tableFunction}`
-      );
-
-      // Add source identifier to SELECT clause
-      if (sourceQuery.toLowerCase().includes("select")) {
-        const finalSourceQuery = sourceQuery.replace(
-          /SELECT\s+/i,
-          `SELECT '${source.name}' as source, `
-        );
-        logToFile("DEBUG", `Generated source query ${index + 1}`, {
-          source: source.name,
-          sourceQuery: finalSourceQuery,
-        });
-        return finalSourceQuery;
-      }
-
-      logToFile(
-        "DEBUG",
-        `Generated source query ${index + 1} (no SELECT found)`,
-        {
-          source: source.name,
-          sourceQuery,
-        }
-      );
-      return sourceQuery;
     });
 
-    const finalUnionQuery = unionQueries.join(" UNION ALL ");
-    logToFile("INFO", "Generated multi-source UNION query", {
-      sourceCount: unionQueries.length,
-      finalQuery: finalUnionQuery,
-    });
-    console.error(
-      `Generated multi-source query with ${unionQueries.length} sources`
+    // Create the unified subquery with all table references combined by UNION ALL
+    const unifiedSubquery = `(${tableReferences.join(' UNION ALL ')})`;
+    
+    // Replace the table reference in the base query with the unified subquery
+    let finalQuery = baseQuery.replace(
+      /FROM\s+(logs|metrics|union_subquery)\b/gi,
+      `FROM ${unifiedSubquery}`
     );
-    return finalUnionQuery;
+
+    // If we added source identification, we need to update the SELECT clause to include it
+    if (needsSourceId && finalQuery.toLowerCase().includes('select dt, raw')) {
+      finalQuery = finalQuery.replace(
+        /SELECT\s+dt,\s*raw/gi,
+        'SELECT source, dt, raw'
+      );
+    }
+
+    logToFile("INFO", "Generated multi-source unified UNION query", {
+      sourceCount: sources.length,
+      tableReferenceCount: tableReferences.length,
+      unifiedSubquery,
+      finalQuery,
+    });
+    
+    console.error(`Generated unified multi-source query with ${sources.length} sources (${tableReferences.length} table references)`);
+    return finalQuery;
   }
 
   async executeQuery(
@@ -744,9 +746,15 @@ export class BetterstackClient {
       finalQuery += ` LIMIT ${options.limit}`;
     }
 
-    // Add FORMAT JSON if not already present
+    // Store original query before modifying for API call
+    const originalQuery = finalQuery;
+    
+    // Add FORMAT JSON if not already present, or replace existing FORMAT for API call
     if (!finalQuery.toLowerCase().includes("format")) {
       finalQuery += " FORMAT JSON";
+    } else {
+      // Replace existing FORMAT with FORMAT JSON for the API call
+      finalQuery = finalQuery.replace(/\s+FORMAT\s+\w+(\s|$)/gi, ' FORMAT JSON');
     }
 
     try {
@@ -882,7 +890,8 @@ export class BetterstackClient {
           total_rows: response.data.rows || response.data.length,
           sources_queried: sources.map((s) => s.name),
           api_used: "clickhouse",
-          executed_sql: finalQuery.replace(" FORMAT JSON", ""),
+          executed_sql: originalQuery,
+          request_url: fullRequestUrl,
         },
       };
     } catch (error: any) {

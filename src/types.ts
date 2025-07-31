@@ -82,6 +82,7 @@ export interface QueryResult {
     sources_queried: string[];
     api_used?: string;
     executed_sql?: string;
+    request_url?: string;
   };
 }
 

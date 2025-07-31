@@ -11,10 +11,6 @@ export type ClickHouseFormat = 'JSON' | 'JSONEachRow' | 'Pretty' | 'CSV' | 'TSV'
 
 // Types for structured query building
 export interface StructuredQueryParams {
-  jsonFields?: {
-    path: string;
-    alias?: string;
-  }[];
   filters?: {
     raw_contains?: string;
     level?: string;
@@ -35,24 +31,13 @@ const logToFile = createLogger(import.meta.url, 'QUERY-TOOLS');
  * Always queries 'dt' (timestamp) and 'raw' (log message) fields
  */
 export async function buildStructuredQuery(params: StructuredQueryParams): Promise<string> {
-  const { jsonFields, filters, limit, dataType, format = 'JSONEachRow' } = params;
+  const { filters, limit, dataType, format = 'JSONEachRow' } = params;
   
   // 1. Validate parameters
   validateQueryParams(params);
   
-  // 2. Build SELECT clause with JSON field extraction
-  // Always query dt (timestamp) and raw (log message) fields
-  const selectItems = ['dt', 'raw'];
-  
-  // Add getJSON() calls for extracted JSON fields
-  if (jsonFields && jsonFields.length > 0) {
-    for (const jsonField of jsonFields) {
-      const alias = jsonField.alias || jsonField.path.replace(/\./g, '_');
-      selectItems.push(`getJSON(raw, '${sanitizeSqlString(jsonField.path)}') as ${alias}`);
-    }
-  }
-  
-  const selectClause = `SELECT ${selectItems.join(', ')}`;
+  // 2. Build SELECT clause - always query dt (timestamp) and raw (log message) fields only
+  const selectClause = 'SELECT dt, raw';
   
   // 3. Build FROM clause (will be replaced by buildMultiSourceQuery later)
   // For union queries, we'll use a subquery pattern that will be replaced
@@ -260,7 +245,7 @@ export function buildRelativeTimeFilter(relative: string): string {
  * - Time filter includes last 24 hours → 'union' (use UNION ALL)
  * - Time filter excludes last 24 hours → 'historical' (s3Cluster only)
  */
-function determineDataType(filters?: StructuredQueryParams['filters']): DataSourceType {
+export function determineDataType(filters?: StructuredQueryParams['filters']): DataSourceType {
   if (!filters?.time_filter) {
     return 'union'; // Default to union for comprehensive coverage
   }
@@ -293,8 +278,36 @@ function determineDataType(filters?: StructuredQueryParams['filters']): DataSour
   // Handle custom time ranges
   if (timeFilter.custom) {
     try {
-      const startDate = new Date(timeFilter.custom.start_datetime);
-      const endDate = new Date(timeFilter.custom.end_datetime);
+      // Handle cases where start_datetime or end_datetime might be missing
+      const { start_datetime, end_datetime } = timeFilter.custom;
+      
+      // If both are missing, treat as no time filter (union)
+      if (!start_datetime && !end_datetime) {
+        return 'union';
+      }
+      
+      // If only start_datetime is provided, assume end time is "now" (union)
+      if (start_datetime && !end_datetime) {
+        return 'union';
+      }
+      
+      // If only end_datetime is provided, check if it's within last 24h
+      if (!start_datetime && end_datetime) {
+        const endDate = new Date(end_datetime);
+        if (isNaN(endDate.getTime())) {
+          return 'union'; // Invalid date, default to union
+        }
+        return endDate >= twentyFourHoursAgo ? 'union' : 'historical';
+      }
+      
+      // Both dates provided - normal logic
+      const startDate = new Date(start_datetime!);
+      const endDate = new Date(end_datetime!);
+      
+      // Check for invalid dates
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return 'union'; // Invalid dates, default to union for safety
+      }
       
       // If the time range includes the last 24 hours, use union
       if (endDate >= twentyFourHoursAgo) {
@@ -415,12 +428,6 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
   server.tool(
     "query_logs",
     {
-      // JSON FIELD EXTRACTION - Extract specific JSON fields as columns
-      json_fields: z.array(z.object({
-        path: z.string().describe("JSON path to extract (e.g., 'level', 'message', 'context.hostname')"),
-        alias: z.string().optional().describe("Optional alias for the extracted field (defaults to path)")
-      })).optional().describe("Extract specific JSON fields as columns using getJSON(raw, 'path')"),
-
       // FILTERING - What to filter by
       filters: z.object({
         // RAW LOG FILTERING (most common use case)
@@ -448,6 +455,13 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
             start_datetime: z.string().describe("ISO datetime string for start time"),
             end_datetime: z.string().describe("ISO datetime string for end time")
           }).optional().describe("Custom time range with precise datetime strings")
+        }).refine((data) => {
+          // Ensure only one of relative or custom is provided, not both
+          const hasRelative = data.relative !== undefined;
+          const hasCustom = data.custom !== undefined;
+          return !(hasRelative && hasCustom);
+        }, {
+          message: "Cannot specify both 'relative' and 'custom' time filters. Use either relative (e.g., 'last_30_minutes') or custom (with start_datetime/end_datetime), not both."
         }).optional().describe("Time filter for logs - use either relative or custom, not both"),
         
       }).optional().describe("Filters to apply to log query"),
@@ -462,10 +476,10 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       // OUTPUT FORMAT - How to format the results
       format: z.enum(['JSON', 'JSONEachRow', 'Pretty', 'CSV', 'TSV']).default('JSONEachRow').describe("Output format for query results. JSONEachRow is best for programmatic access, Pretty for human reading, CSV/TSV for data export")
     },
-    async ({ json_fields, filters, limit, sources, source_group, format }) => {
+    async ({ filters, limit, sources, source_group, format }) => {
       try {
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          json_fields, filters, limit, sources, source_group, format 
+          filters, limit, sources, source_group, format 
         });
         
         // Step 1: Determine data type automatically based on time filters
@@ -489,7 +503,6 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         // Step 3: Build the SQL query from structured parameters
         // Always query 'dt' (timestamp) and 'raw' (log message) fields
         const query = await buildStructuredQuery({
-          jsonFields: json_fields,
           filters,
           limit,
           dataType,
@@ -506,6 +519,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           `Sources queried: ${result.meta?.sources_queried?.join(', ') || 'unknown'}`,
           `Total rows: ${result.meta?.total_rows || result.data.length}`,
           `Executed SQL: \`${result.meta?.executed_sql || query}\``,
+          `Request URL: ${result.meta?.request_url || 'unknown'}`,
           '',
           '**Data:**'
         ];
