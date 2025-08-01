@@ -26,7 +26,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const params = {
       filters: {
         time_filter: { relative: "last_3_hours" as RelativeTimeFilter },
-        raw_contains: "error",
+        raw_contains: ["error"],
         level: "WARN" as const,
       },
       sources: ["Production API Server"], // Single source
@@ -44,7 +44,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
       dataType,
       format: "JSONEachRow",
     });
-    const expectedStructuredQuery = `SELECT dt, raw FROM union_subquery WHERE ilike(raw, '%error%') AND ilike(raw, '%"level":"warn"%') AND dt >= now() - INTERVAL 3 HOUR ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedStructuredQuery = `SELECT dt, raw FROM union_subquery WHERE (ilike(raw, '%error%')) AND ilike(raw, '%"level":"warn"%') AND dt >= now() - INTERVAL 3 HOUR ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(structuredQuery).toBe(expectedStructuredQuery);
 
     // Step 3: Execute full pipeline through MCP and verify final SQL and URL
@@ -52,7 +52,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const responseText = result.content[0].text;
 
     // Verify the final SQL query format
-    const expectedFinalSQL = `SELECT dt, raw FROM (SELECT dt, raw FROM remote(t12345_production_api_logs) UNION DISTINCT SELECT dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) WHERE ilike(raw, '%error%') AND ilike(raw, '%"level":"warn"%') AND dt >= now() - INTERVAL 3 HOUR ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedFinalSQL = `SELECT dt, raw FROM (SELECT dt, raw FROM remote(t12345_production_api_logs) UNION DISTINCT SELECT dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) WHERE (ilike(raw, '%error%')) AND ilike(raw, '%"level":"warn"%') AND dt >= now() - INTERVAL 3 HOUR ORDER BY dt DESC LIMIT 100 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
 
     // Step 4: Verify union query URL (no optimization parameters for union queries)
@@ -124,7 +124,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const params = {
       filters: {
         time_filter: { relative: "last_6_hours" as RelativeTimeFilter },
-        raw_contains: "api",
+        raw_contains: ["api"],
         level: "ERROR" as const,
       },
       sources: ["Production API Server", "Frontend Application"], // Multiple sources
@@ -142,7 +142,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
       dataType,
       format: "JSONEachRow",
     });
-    const expectedStructuredQuery = `SELECT dt, raw FROM union_subquery WHERE ilike(raw, '%api%') AND ilike(raw, '%"level":"error"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 75 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedStructuredQuery = `SELECT dt, raw FROM union_subquery WHERE (ilike(raw, '%api%')) AND ilike(raw, '%"level":"error"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 75 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(structuredQuery).toBe(expectedStructuredQuery);
 
     // Step 3: Execute full pipeline through MCP and verify final SQL and URL
@@ -150,7 +150,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const responseText = result.content[0].text;
 
     // Verify the final SQL query format
-    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Production API Server' as source, dt, raw FROM remote(t12345_production_api_logs) UNION DISTINCT SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1)) WHERE ilike(raw, '%api%') AND ilike(raw, '%"level":"error"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 75 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Production API Server' as source, dt, raw FROM remote(t12345_production_api_logs) UNION DISTINCT SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1)) WHERE (ilike(raw, '%api%')) AND ilike(raw, '%"level":"error"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 75 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
 
     // Step 4: Verify union query URL (no optimization parameters for union queries)
@@ -174,7 +174,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
             end_datetime: "2024-02-15T18:00:00Z",
           },
         },
-        raw_contains: "database",
+        raw_contains: ["database"],
       },
       sources: ["Production API Server", "Frontend Application"], // Multiple sources
       limit: 150,
@@ -191,7 +191,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
       dataType,
       format: "JSONEachRow",
     });
-    const expectedStructuredQuery = `SELECT dt, raw FROM logs WHERE ilike(raw, '%database%') AND dt >= parseDateTime64BestEffort('2024-02-15T08:00:00Z') AND dt <= parseDateTime64BestEffort('2024-02-15T18:00:00Z') ORDER BY dt DESC LIMIT 150 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedStructuredQuery = `SELECT dt, raw FROM logs WHERE (ilike(raw, '%database%')) AND dt >= parseDateTime64BestEffort('2024-02-15T08:00:00Z') AND dt <= parseDateTime64BestEffort('2024-02-15T18:00:00Z') ORDER BY dt DESC LIMIT 150 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(structuredQuery).toBe(expectedStructuredQuery);
 
     // Step 3: Execute full pipeline through MCP and verify final SQL and URL
@@ -222,7 +222,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const params = {
       filters: {
         time_filter: { relative: "last_12_hours" },
-        raw_contains: "service",
+        raw_contains: ["service"],
         level: "INFO",
       },
       limit: 120,
@@ -246,18 +246,18 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const structuredQuery = await buildStructuredQuery({
       filters: {
         time_filter: { relative: "last_12_hours" as RelativeTimeFilter },
-        raw_contains: "service",
+        raw_contains: ["service"],
         level: "INFO",
       },
       limit: params.limit,
       dataType,
       format: "JSONEachRow",
     });
-    const expectedStructuredQuery = `SELECT dt, raw FROM union_subquery WHERE ilike(raw, '%service%') AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedStructuredQuery = `SELECT dt, raw FROM union_subquery WHERE (ilike(raw, '%service%')) AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(structuredQuery).toBe(expectedStructuredQuery);
 
     // Step 3: Verify the final SQL query format (should include all 3 sources in Development Environment group)
-    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Spark - staging | deprecated' as source, dt, raw FROM remote(t12345_spark_staging_logs) UNION DISTINCT SELECT 'Spark - staging | deprecated' as source, dt, raw FROM s3Cluster(primary, t12345_spark_staging_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Database Service' as source, dt, raw FROM remote(t12345_database_service_logs) UNION DISTINCT SELECT 'Database Service' as source, dt, raw FROM s3Cluster(primary, t12345_database_service_s3) WHERE _row_type = 1)) WHERE ilike(raw, '%service%') AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Spark - staging | deprecated' as source, dt, raw FROM remote(t12345_spark_staging_logs) UNION DISTINCT SELECT 'Spark - staging | deprecated' as source, dt, raw FROM s3Cluster(primary, t12345_spark_staging_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Database Service' as source, dt, raw FROM remote(t12345_database_service_logs) UNION DISTINCT SELECT 'Database Service' as source, dt, raw FROM s3Cluster(primary, t12345_database_service_s3) WHERE _row_type = 1)) WHERE (ilike(raw, '%service%')) AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
 
     // Step 4: Verify union query URL (no optimization parameters for union queries)
@@ -281,7 +281,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
             end_datetime: "2024-03-10T20:15:00Z",
           },
         },
-        raw_contains: "database",
+        raw_contains: ["database"],
         level: "WARN",
       },
       limit: 180,
@@ -299,7 +299,7 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
       dataType,
       format: "JSONEachRow",
     });
-    const expectedStructuredQuery = `SELECT dt, raw FROM logs WHERE ilike(raw, '%database%') AND ilike(raw, '%"level":"warn"%') AND dt >= parseDateTime64BestEffort('2024-03-10T14:30:00Z') AND dt <= parseDateTime64BestEffort('2024-03-10T20:15:00Z') ORDER BY dt DESC LIMIT 180 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
+    const expectedStructuredQuery = `SELECT dt, raw FROM logs WHERE (ilike(raw, '%database%')) AND ilike(raw, '%"level":"warn"%') AND dt >= parseDateTime64BestEffort('2024-03-10T14:30:00Z') AND dt <= parseDateTime64BestEffort('2024-03-10T20:15:00Z') ORDER BY dt DESC LIMIT 180 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(structuredQuery).toBe(expectedStructuredQuery);
 
     // Step 3: Execute full pipeline through MCP and verify final SQL and URL
