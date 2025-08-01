@@ -68,7 +68,7 @@ describe("Time Filter Validation", () => {
     it("should accept no time filter", async () => {
       const validParams = {
         filters: {
-          raw_contains: "error",
+          raw_contains: ["error"],
           level: "ERROR",
         },
         limit: 10,
@@ -131,7 +131,7 @@ describe("Time Filter Validation", () => {
       const validParams = {
         filters: {
           time_filter: {},
-          raw_contains: "info",
+          raw_contains: ["info"],
         },
         limit: 10,
       };

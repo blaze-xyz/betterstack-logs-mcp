@@ -12,7 +12,7 @@ export type ClickHouseFormat = 'JSON' | 'JSONEachRow' | 'Pretty' | 'CSV' | 'TSV'
 // Types for structured query building
 export interface StructuredQueryParams {
   filters?: {
-    raw_contains?: string;
+    raw_contains?: string[];
     level?: string;
     time_filter?: TimeFilter;
   };
@@ -51,9 +51,12 @@ export async function buildStructuredQuery(params: StructuredQueryParams): Promi
   if (filters) {
     try {
       // Raw log filtering (most common use case) - case-insensitive
-      if (filters.raw_contains) {
-        const escaped = sanitizeSqlString(filters.raw_contains);
-        whereConditions.push(`ilike(raw, '%${escaped}%')`);
+      if (filters.raw_contains && filters.raw_contains.length > 0) {
+        const conditions = filters.raw_contains.map(keyword => {
+          const escaped = sanitizeSqlString(keyword);
+          return `ilike(raw, '%${escaped}%')`;
+        });
+        whereConditions.push(`(${conditions.join(' AND ')})`);
       }
       
       // Log level filtering (using pattern matching)
@@ -424,7 +427,7 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       // FILTERING - What to filter by
       filters: z.object({
         // RAW LOG FILTERING (most common use case)
-        raw_contains: z.string().optional().describe("Case-insensitive substring search in raw field"),
+        raw_contains: z.array(z.string()).optional().describe("Array of keywords for case-insensitive substring search in raw field. All keywords must be present in the log message."),
         
         // LOG LEVEL FILTERING (using pattern matching)
         level: z.enum(['DEBUG', 'INFO', 'WARN', 'ERROR', 'FATAL']).optional().describe("Filter by log level (uses pattern matching)"),

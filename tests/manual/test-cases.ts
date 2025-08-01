@@ -225,7 +225,7 @@ export const manualTestCases: ManualTestSuite = {
         name: "query_logs",
         arguments: {
           filters: {
-            raw_contains: "error",
+            raw_contains: ["error"],
           },
           sources: ["1386515"],
           limit: 10,
@@ -333,7 +333,7 @@ export const manualTestCases: ManualTestSuite = {
         name: "query_logs",
         arguments: {
           filters: {
-            raw_contains: "login",
+            raw_contains: ["login"],
             level: "ERROR",
             time_filter: {
               relative: "last_24_hours",
@@ -351,6 +351,42 @@ export const manualTestCases: ManualTestSuite = {
       },
       mockData: [
         { dt: "2024-01-01T10:00:00Z", raw: "ERROR: Login failed for user" },
+      ],
+    },
+
+    "multi-keyword-raw-search": {
+      id: "2.7",
+      description: "Search logs using multiple keywords (all must be present)",
+      category: "Single Source Log Querying Tests",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          filters: {
+            raw_contains: ["clziajzvi0003lvw5g1do1jyk", "confirm"],
+          },
+          sources: ["1386515"],
+          limit: 5,
+        },
+      },
+      expected: {
+        shouldContain: ["Query Results"],
+        resultCount: { max: 5 },
+        notes:
+          "Should return logs containing both user ID 'clziajzvi0003lvw5g1do1jyk' AND keyword 'confirm' - keywords don't need to be adjacent",
+      },
+      mockData: [
+        {
+          dt: "2024-01-01T10:00:00Z",
+          raw: "User clziajzvi0003lvw5g1do1jyk requested confirm action for profile update",
+        },
+        {
+          dt: "2024-01-01T10:01:00Z",
+          raw: "Action confirm completed for user clziajzvi0003lvw5g1do1jyk with success status",
+        },
+        {
+          dt: "2024-01-01T10:02:00Z",
+          raw: "Email confirm sent to clziajzvi0003lvw5g1do1jyk@example.com for verification",
+        },
       ],
     },
   },
@@ -386,7 +422,7 @@ export const manualTestCases: ManualTestSuite = {
         name: "query_logs",
         arguments: {
           filters: {
-            raw_contains: "error",
+            raw_contains: ["error"],
           },
           sources: ["1386515", "1442440"],
           limit: 10,
@@ -520,7 +556,7 @@ export const manualTestCases: ManualTestSuite = {
                 end_datetime: "2025-07-29T18:45:00Z",
               },
             },
-            raw_contains: "timeout",
+            raw_contains: ["timeout"],
             level: "WARN",
           },
           sources: ["1386515", "1442440", "1386535"],
@@ -540,7 +576,7 @@ export const manualTestCases: ManualTestSuite = {
                   end_datetime: "2025-07-29T18:45:00Z",
                 },
               },
-              raw_contains: "timeout",
+              raw_contains: ["timeout"],
               level: "WARN",
             },
             sources: ["1386515", "1442440", "1386535"],
@@ -610,7 +646,7 @@ export const manualTestCases: ManualTestSuite = {
         name: "query_logs",
         arguments: {
           filters: {
-            raw_contains: "warning",
+            raw_contains: ["warning"],
           },
           source_group: "Production",
           limit: 10,

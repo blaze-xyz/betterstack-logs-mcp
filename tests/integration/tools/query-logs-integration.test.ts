@@ -51,7 +51,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        filters: { raw_contains: 'API' },
+        filters: { raw_contains: ['API'] },
         sources: ['1021716'], // Production API Server ID
         limit: 1
       })
@@ -94,7 +94,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        filters: { raw_contains: 'nonexistent' },
+        filters: { raw_contains: ['nonexistent'] },
         limit: 10
       })
 
@@ -169,7 +169,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        filters: { raw_contains: 'invalid' }
+        filters: { raw_contains: ['invalid'] }
       })
 
       expect(result).toHaveProperty('content')
@@ -237,7 +237,7 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        filters: { raw_contains: 'User action' },
+        filters: { raw_contains: ['User action'] },
         limit: 1
       })
 
