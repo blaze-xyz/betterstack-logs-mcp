@@ -83,8 +83,6 @@ Add to your `claude_desktop_config.json`:
 - `query_logs`: Execute structured log queries with filtering and time range support
 - `debug_table_info`: Inspect source table schemas and query generation
 
-### Analysis Tools
-- `get_log_statistics`: Get log volume and distribution statistics
 
 ## Usage Examples
 

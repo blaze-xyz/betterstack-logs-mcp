@@ -8,7 +8,6 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { BetterstackClient } from '../../src/betterstack-client.js'
 import { registerSourceManagementTools } from '../../src/tools/source-management.js'
 import { registerQueryTools } from '../../src/tools/query-tools.js'
-import { registerAnalysisTools } from '../../src/tools/analysis-tools.js'
 import { createTestConfig } from './test-config.js'
 
 export function createTestServer(): { server: McpServer, client: BetterstackClient } {
@@ -25,7 +24,6 @@ export function createTestServer(): { server: McpServer, client: BetterstackClie
   // Register all tool categories (same as production server)
   registerSourceManagementTools(server, client)
   registerQueryTools(server, client)
-  registerAnalysisTools(server, client)
   
   
   return { server, client }
