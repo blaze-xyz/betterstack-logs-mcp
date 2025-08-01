@@ -7,6 +7,7 @@ import { loadConfig } from './config.js';
 import { BetterstackClient } from './betterstack-client.js';
 import { registerSourceManagementTools } from './tools/source-management.js';
 import { registerQueryTools } from './tools/query-tools.js';
+import { registerAnalysisTools } from './tools/analysis-tools.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -101,7 +102,7 @@ try {
 // Register all tool categories
 registerSourceManagementTools(server, client);
 registerQueryTools(server, client);
-// registerAnalysisTools(server, client); // Commented out for focused testing
+registerAnalysisTools(server, client);
 
 
 // Start the server
