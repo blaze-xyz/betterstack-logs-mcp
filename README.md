@@ -6,9 +6,8 @@ An MCP (Model Context Protocol) server that enables AI assistants to query and a
 
 - **Multi-source querying**: Query individual sources or source groups
 - **Source management**: Discover and inspect available sources and groups
-- **Query tools**: Execute custom ClickHouse SQL or use simplified search interfaces
+- **Query tools**: Execute structured ClickHouse SQL queries with intelligent filtering
 - **Historical data**: Access both recent and archived logs
-- **Metrics support**: Query performance metrics alongside logs
 - **AI-friendly**: Intelligent source selection based on query context
 
 ## Installation
@@ -81,15 +80,9 @@ Add to your `claude_desktop_config.json`:
 - `get_source_group_info`: Get details about a source group
 
 ### Query Tools
-- `query_logs`: Execute custom ClickHouse SQL queries
-- `search_logs`: Simple text search across logs
-- `get_recent_logs`: Fetch recent logs with filters
-- `get_historical_logs`: Query archived logs
-- `query_metrics`: Access performance metrics
+- `query_logs`: Execute structured log queries with filtering and time range support
+- `debug_table_info`: Inspect source table schemas and query generation
 
-### Analysis Tools
-- `analyze_errors`: Find and analyze error patterns
-- `export_logs`: Export logs in JSON/CSV formats
 
 ## Usage Examples
 
@@ -97,11 +90,11 @@ Add to your `claude_desktop_config.json`:
 # List available sources
 AI: What sources do we have?
 
-# Search recent errors in production
-AI: Show me recent errors from the production environment
+# Query recent logs with filtering
+AI: Show me ERROR level logs from the last hour in production
 
-# Query specific source
-AI: Show me website logs from the last hour
+# Query specific time range
+AI: Show me all logs from yesterday between 2pm and 4pm
 
 # Get source group details
 AI: What's included in our production source group?
