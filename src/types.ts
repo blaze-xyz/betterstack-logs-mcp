@@ -154,6 +154,8 @@ export interface TableSchema {
 export interface LogEntry {
   dt: string;
   raw: string;
+  source?: string;  // Source name for this log entry
+  level?: string;   // Extracted log level (INFO, ERROR, etc.)
 }
 
 export interface LogCache {

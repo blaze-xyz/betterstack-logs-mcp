@@ -55,10 +55,10 @@ describe('Compact Query Workflow Integration Tests', () => {
       expect(responseText).toContain('Cache ID:');
       expect(responseText).toContain('**Logs:**');
       
-      // Verify extracted messages are shown (not full JSON)
-      expect(responseText).toContain('User login successful');
-      expect(responseText).toContain('Database connection slow');
-      expect(responseText).toContain('API request failed');
+      // Verify enhanced compact format with source and level information  
+      expect(responseText).toContain('| INFO]: User login successful');
+      expect(responseText).toContain('| WARN]: Database connection slow');
+      expect(responseText).toContain('| ERROR]: API request failed');
       
       // Verify full JSON is NOT shown in compact view
       expect(responseText).not.toContain('"user_id":12345');
@@ -91,7 +91,7 @@ describe('Compact Query Workflow Integration Tests', () => {
       });
 
       const responseText = result.content[0].text;
-      expect(responseText).toContain('Service started');
+      expect(responseText).toContain('| INFO]: Service started');
     });
 
     it('should handle logs with invalid JSON gracefully', async () => {
@@ -114,7 +114,7 @@ describe('Compact Query Workflow Integration Tests', () => {
       });
 
       const responseText = result.content[0].text;
-      expect(responseText).toContain('Plain text log message without JSON structure');
+      expect(responseText).toContain(']: Plain text log message without JSON structure');
     });
 
     it('should not create cache for empty results', async () => {
@@ -293,7 +293,7 @@ describe('Compact Query Workflow Integration Tests', () => {
       const responseText = result.content[0].text;
       expect(responseText).toContain('Query Results (Compact View)');
       expect(responseText).toContain('Cache ID:'); // Compact format caches results
-      expect(responseText).toContain('Default format test');
+      expect(responseText).toContain(']: Default format test');
     });
   });
 });

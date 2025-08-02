@@ -2,9 +2,12 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { BetterstackClient } from '../betterstack-client.js';
 import { QueryOptions, DataSourceType, TimeFilter } from '../types.js';
+import { createLogger } from '../utils/logging.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+
+const logToFile = createLogger(import.meta.url, 'QUERY-TOOLS');
 
 // ClickHouse output format types
 export type ClickHouseFormat = 'JSON' | 'JSONEachRow' | 'Pretty' | 'CSV' | 'TSV';
@@ -21,9 +24,6 @@ export interface StructuredQueryParams {
 }
 
 // Setup logging using shared utility
-import { createLogger } from '../utils/logging.js';
-
-const logToFile = createLogger(import.meta.url, 'QUERY-TOOLS');
 
 /**
  * Extracts the message field from a raw log JSON string
@@ -37,6 +37,27 @@ export function extractMessage(rawLog: string): string {
   } catch {
     // If JSON parsing fails, return the raw string
     return rawLog;
+  }
+}
+
+/**
+ * Extracts log level from a raw log string
+ * Tries to parse as JSON and extract common level field names
+ * Fallback hierarchy: level -> severity -> loglevel -> null
+ */
+export function extractLogLevel(rawLog: string): string | null {
+  try {
+    const parsed = JSON.parse(rawLog);
+    // Try common log level field names
+    const level = parsed.level || parsed.severity || parsed.loglevel;
+    if (level) {
+      // Normalize to uppercase for consistency
+      return String(level).toUpperCase();
+    }
+    return null;
+  } catch {
+    // If JSON parsing fails, no level available
+    return null;
   }
 }
 
@@ -542,10 +563,34 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         // For compact format, cache the results for later detail retrieval
         if (actualResponseFormat === 'compact' && result.data.length > 0) {
           cacheId = client.generateCacheId(query, options);
-          const logEntries = result.data.map((row: any) => ({
-            dt: row.dt || '',
-            raw: row.raw || ''
-          }));
+          const sources = cacheMetadata.sources_queried;
+          
+          const logEntries = result.data.map((row: any, index: number) => {
+            const derivedSource = row.source || (sources.length === 1 ? sources[0] : 'Unknown Source');
+            
+            // Debug logging for source attribution issues
+            if (derivedSource === 'Unknown Source') {
+              logToFile('DEBUG', 'Source attribution defaulted to Unknown Source', {
+                logIndex: index,
+                hasRowSource: !!row.source,
+                rowSourceValue: row.source,
+                sourcesLength: sources.length,
+                sourcesQueried: sources,
+                sampleRowData: {
+                  dt: row.dt,
+                  hasRaw: !!row.raw,
+                  rawLength: row.raw?.length || 0
+                }
+              });
+            }
+            
+            return {
+              dt: row.dt || '',
+              raw: row.raw || '',
+              source: derivedSource,
+              level: extractLogLevel(row.raw || '') || undefined
+            };
+          });
           client.cacheLogResults(cacheId, logEntries, cacheMetadata);
         }
         
@@ -567,11 +612,18 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
           resultText.push('No results found.');
         } else {
           if (actualResponseFormat === 'compact') {
-            // Compact format: show timestamp and extracted message
+            // Compact format: show timestamp, source, level, and extracted message
+            const sources = cacheMetadata.sources_queried;
+            
             const formatted = result.data.map((row: any, index: number) => {
               const timestamp = row.dt || 'Unknown time';
               const message = extractMessage(row.raw || '');
-              return `${index + 1}. ${timestamp}: ${message}`;
+              const level = extractLogLevel(row.raw || '');
+              const sourceForDisplay = row.source || (sources.length === 1 ? sources[0] : 'Unknown Source');
+              
+              // Format: "1. 2025-08-02 01:16:23.352000 [Source | LEVEL]: message"
+              const levelPart = level ? ` | ${level}` : '';
+              return `${index + 1}. ${timestamp} [${sourceForDisplay}${levelPart}]: ${message}`;
             });
             
             resultText.push(...formatted);
@@ -661,13 +713,13 @@ ${errorDetails}`
           };
         }
         
-        const { log, metadata } = result;
+        const { log } = result;
         
         const resultText = [
           `**Log Details (Index ${log_index})**`,
           `Cache ID: ${cache_id}`,
           `Timestamp: ${log.dt}`,
-          `Source: ${metadata.sources_queried?.join(', ') || 'Unknown'}`,
+          `Source: ${log.source || 'Unknown'}`,
           '',
           '**Full Raw Data:**',
           log.raw

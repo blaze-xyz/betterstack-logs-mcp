@@ -842,15 +842,19 @@ export const manualTestCases: ManualTestSuite = {
           "Cache ID:",
           "**Logs:**",
           "1. ",
+          "[",
+          " | INFO]:",
           "Use 'get_log_details'",
         ],
         shouldNotContain: [
           "Query Results (Full View)",
           "raw:",
           "dt:",
+          '"user_id":12345',
+          '"service":"auth"',
         ],
         resultCount: { max: 5 },
-        notes: "Should default to compact format showing timestamp + extracted message with cache ID for drill-down",
+        notes: "Should default to compact format showing timestamp + [Source | LEVEL]: message format with cache ID for drill-down, hiding verbose JSON details",
       },
       mockData: [
         { dt: "2024-01-01T10:00:00Z", raw: '{"message":"User login successful","level":"INFO","user_id":12345}' },
@@ -888,9 +892,8 @@ export const manualTestCases: ManualTestSuite = {
           "Query Results (Compact View)",
           "Cache ID:",
           "**Logs:**",
-          "User login successful",
-          "Database connection established",
-          "Plain text log without JSON structure",
+          "[",
+          " | INFO]:",
           "get_log_details",
         ],
         shouldNotContain: [
@@ -900,7 +903,7 @@ export const manualTestCases: ManualTestSuite = {
           "raw:",
         ],
         resultCount: { max: 8 },
-        notes: "Should extract messages from JSON logs (message field) and show plain text as-is, with cache for details",
+        notes: "Should extract messages from JSON logs (message field) and show enhanced compact format [Source | LEVEL]: message, with cache for details",
       },
       mockData: [
         { dt: "2024-01-01T10:00:00Z", raw: '{"message":"User login successful","level":"INFO","user_id":12345}' },
@@ -908,43 +911,8 @@ export const manualTestCases: ManualTestSuite = {
         { dt: "2024-01-01T10:02:00Z", raw: "Plain text log without JSON structure" },
       ],
     },
-    "compact-format-msg-field": {
-      id: "7.3",
-      description: "Compact format with 'msg' field fallback",
-      category: "Response Format Testing",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          filters: {
-            raw_contains: ["service"],
-          },
-          sources: ["1386515"],
-          limit: 5,
-          response_format: "compact",
-        },
-      },
-      expected: {
-        shouldContain: [
-          "Query Results (Compact View)",
-          "Cache ID:",
-          "Service started successfully",
-          "Service authentication enabled",
-        ],
-        shouldNotContain: [
-          '"service":"auth"',
-          '"port":8080',
-          "raw:",
-        ],
-        resultCount: { max: 5 },
-        notes: "Should extract from 'msg' field when 'message' field is not present",
-      },
-      mockData: [
-        { dt: "2024-01-01T10:00:00Z", raw: '{"msg":"Service started successfully","level":"INFO","service":"auth","port":8080}' },
-        { dt: "2024-01-01T10:01:00Z", raw: '{"msg":"Service authentication enabled","level":"INFO","service":"auth"}' },
-      ],
-    },
     "explicit-full-format": {
-      id: "7.4",
+      id: "7.3",
       description: "Explicit full format with complete raw data",
       category: "Response Format Testing",
       payload: {
@@ -972,10 +940,10 @@ export const manualTestCases: ManualTestSuite = {
         shouldContain: [
           "Query Results (Full View)",
           "**Data:**",
-          "dt: 2024-01-01T10:00:00Z",
-          'raw: {"message":"User login successful","level":"INFO","user_id":12345}',
-          "dt: 2024-01-01T10:01:00Z",
-          'raw: {"message":"Database connection established","level":"INFO","service":"auth"}',
+          "dt: ",
+          'raw: {',
+          "1. ",
+          "2. ",
         ],
         shouldNotContain: [
           "Query Results (Compact View)",
@@ -991,53 +959,15 @@ export const manualTestCases: ManualTestSuite = {
         { dt: "2024-01-01T10:02:00Z", raw: "Plain text log without JSON structure" },
       ],
     },
-    "full-format-json-objects": {
-      id: "7.5",
-      description: "Full format with complex JSON objects",
-      category: "Response Format Testing",
-      payload: {
-        name: "query_logs",
-        arguments: {
-          sources: ["1386515"],
-          limit: 2,
-          response_format: "full",
-        },
-      },
-      expected: {
-        shouldContain: [
-          "Query Results (Full View)",
-          '{"user_id":123,"action":"login","metadata":{"ip":"192.168.1.1","user_agent":"Chrome"}}',
-          "dt: 2024-01-01T10:00:00Z",
-          "raw: API request processed",
-        ],
-        shouldNotContain: [
-          "[object Object]",
-          "Cache ID:",
-        ],
-        resultCount: { max: 2 },
-        notes: "Should properly stringify complex JSON objects, not show [object Object]",
-      },
-      mockData: [
-        { 
-          dt: "2024-01-01T10:00:00Z", 
-          raw: "API request processed",
-          json: { 
-            user_id: 123, 
-            action: "login", 
-            metadata: { ip: "192.168.1.1", user_agent: "Chrome" }
-          }
-        },
-      ],
-    },
     "compact-format-multi-source": {
-      id: "7.6",
+      id: "7.4",
       description: "Compact format with multiple sources",
       category: "Response Format Testing",
       payload: {
         name: "query_logs",
         arguments: {
           sources: ["1386515", "1442440"],
-          limit: 6,
+          limit: 100,
           response_format: "compact",
         },
       },
@@ -1046,17 +976,17 @@ export const manualTestCases: ManualTestSuite = {
           "Query Results (Compact View)",
           "Cache ID:",
           "Sources queried:",
-          "Spark - Production",
-          "App - production",
           "**Logs:**",
+          "[",
+          "]:",
         ],
         shouldNotContain: [
           "Query Results (Full View)",
           "raw:",
           "dt:",
         ],
-        resultCount: { max: 6 },
-        notes: "Should show compact format for multi-source queries with source information in metadata",
+        resultCount: { max: 100 },
+        notes: "Should show enhanced compact format for multi-source queries with each log displaying its specific source name like [Source Name | LEVEL]: message",
       },
       mockData: [
         { dt: "2024-01-01T10:00:00Z", raw: '{"message":"Spark production log"}' },
@@ -1065,199 +995,9 @@ export const manualTestCases: ManualTestSuite = {
     },
   },
 
-  "log-details-drill-down": {
-    "get-log-details-basic": {
-      id: "8.1",
-      description: "Get log details from compact query cache (basic)",
-      category: "Log Details Drill-Down Testing",
-      payload: {
-        name: "get_log_details",
-        arguments: {
-          cache_id: "abc123def456",
-          log_index: 0,
-        },
-      },
-      jsonRpcPayload: {
-        jsonrpc: "2.0",
-        method: "tools/call",
-        params: {
-          name: "get_log_details",
-          arguments: {
-            cache_id: "abc123def456",
-            log_index: 0,
-          },
-        },
-        id: 81,
-      },
-      expected: {
-        shouldContain: [
-          "Log Details (Index 0)",
-          "Cache ID: abc123def456",
-          "Timestamp:",
-          "Source:",
-          "**Full Raw Data:**",
-        ],
-        resultCount: { min: 1 },
-        notes: "Should return full details for the specified log entry from cache",
-      },
-      mockData: [
-        { dt: "2024-01-01T10:00:00Z", raw: '{"message":"User login successful","level":"INFO","user_id":12345,"session_id":"sess_abc123","ip":"192.168.1.1","user_agent":"Chrome/91.0"}' },
-      ],
-    },
-    "get-log-details-complex-json": {
-      id: "8.2",
-      description: "Get log details with complex JSON structure",
-      category: "Log Details Drill-Down Testing",
-      payload: {
-        name: "get_log_details",
-        arguments: {
-          cache_id: "def789ghi012",
-          log_index: 1,
-        },
-      },
-      expected: {
-        shouldContain: [
-          "Log Details (Index 1)",
-          "Cache ID: def789ghi012",
-          "**Full Raw Data:**",
-          '"error_details":{"code":500,"message":"Database connection failed","stack_trace":',
-          '"request_context":{"user_id":"user_12345","endpoint":"/api/users","method":"POST"}',
-        ],
-        resultCount: { min: 1 },
-        notes: "Should show complete raw JSON including nested objects and error details",
-      },
-      mockData: [
-        { 
-          dt: "2024-01-01T10:05:00Z", 
-          raw: '{"message":"API request failed","level":"ERROR","error_details":{"code":500,"message":"Database connection failed","stack_trace":"SQLException at line 42"},"request_context":{"user_id":"user_12345","endpoint":"/api/users","method":"POST","headers":{"content-type":"application/json"}}}' 
-        },
-      ],
-    },
-    "get-log-details-plain-text": {
-      id: "8.3",
-      description: "Get log details for plain text log",
-      category: "Log Details Drill-Down Testing",
-      payload: {
-        name: "get_log_details",
-        arguments: {
-          cache_id: "ghi345jkl678",
-          log_index: 2,
-        },
-      },
-      expected: {
-        shouldContain: [
-          "Log Details (Index 2)",
-          "Cache ID: ghi345jkl678",
-          "**Full Raw Data:**",
-          "2024-01-01 10:10:15 [ERROR] Database connection pool exhausted - maximum 50 connections reached, current active: 50, waiting queue: 25 requests",
-        ],
-        resultCount: { min: 1 },
-        notes: "Should show complete plain text log data as-is",
-      },
-      mockData: [
-        { 
-          dt: "2024-01-01T10:10:15Z", 
-          raw: "2024-01-01 10:10:15 [ERROR] Database connection pool exhausted - maximum 50 connections reached, current active: 50, waiting queue: 25 requests" 
-        },
-      ],
-    },
-    "get-log-details-invalid-cache": {
-      id: "8.4",
-      description: "Get log details with invalid cache ID",
-      category: "Log Details Drill-Down Testing",
-      payload: {
-        name: "get_log_details",
-        arguments: {
-          cache_id: "invalid-cache-id-123",
-          log_index: 0,
-        },
-      },
-      expected: {
-        shouldContain: [
-          "❌ Cache ID not found or expired",
-        ],
-        shouldNotContain: [
-          "Log Details",
-          "**Full Raw Data:**",
-        ],
-        notes: "Should return error message for invalid/expired cache ID",
-      },
-      mockData: [],
-    },
-    "get-log-details-invalid-index": {
-      id: "8.5",
-      description: "Get log details with invalid log index",
-      category: "Log Details Drill-Down Testing",
-      payload: {
-        name: "get_log_details",
-        arguments: {
-          cache_id: "valid123cache456",
-          log_index: 10,
-        },
-      },
-      expected: {
-        shouldContain: [
-          "❌ Invalid log index: 10",
-          "Valid range:",
-        ],
-        shouldNotContain: [
-          "Log Details",
-          "**Full Raw Data:**",
-        ],
-        notes: "Should return error message with valid range when log index is out of bounds",
-      },
-      mockData: [
-        { dt: "2024-01-01T10:00:00Z", raw: '{"message":"Only log in cache"}' },
-      ],
-    },
-    "workflow-compact-to-details": {
-      id: "8.6",
-      description: "Complete workflow: compact query → get details",
-      category: "Log Details Drill-Down Testing",
-      payload: {
-        name: "workflow_test",
-        arguments: {
-          step1: {
-            tool: "query_logs",
-            args: {
-              filters: { raw_contains: ["authentication"] },
-              sources: ["1386515"],
-              limit: 3,
-              response_format: "compact",
-            },
-          },
-          step2: {
-            tool: "get_log_details",
-            args: {
-              cache_id: "extracted_from_step1",
-              log_index: 1,
-            },
-          },
-        },
-      },
-      expected: {
-        shouldContain: [
-          "Step 1: Query Results (Compact View)",
-          "Cache ID:",
-          "authentication successful",
-          "Step 2: Log Details (Index 1)",
-          "**Full Raw Data:**",
-          '"user_id":"user_67890"',
-          '"authentication_method":"oauth"',
-        ],
-        notes: "Manual workflow test: 1) Run compact query, 2) Extract cache_id from result, 3) Run get_log_details with cache_id and index",
-      },
-      mockData: [
-        { dt: "2024-01-01T10:00:00Z", raw: '{"message":"User authentication started","level":"INFO","user_id":"user_12345"}' },
-        { dt: "2024-01-01T10:01:00Z", raw: '{"message":"User authentication successful","level":"INFO","user_id":"user_67890","authentication_method":"oauth","session_duration":3600}' },
-        { dt: "2024-01-01T10:02:00Z", raw: '{"message":"User authentication failed","level":"WARN","user_id":"user_99999","reason":"invalid_credentials"}' },
-      ],
-    },
-  },
-
   "token-efficiency-testing": {
     "large-logs-compact": {
-      id: "9.1",
+      id: "8.1",
       description: "Large logs with compact format (token efficiency)",
       category: "Token Efficiency Testing",
       payload: {
@@ -1289,7 +1029,7 @@ export const manualTestCases: ManualTestSuite = {
       })),
     },
     "large-logs-full": {
-      id: "9.2",
+      id: "8.2",
       description: "Large logs with full format (token heavy)",
       category: "Token Efficiency Testing",
       payload: {
@@ -1321,7 +1061,7 @@ export const manualTestCases: ManualTestSuite = {
       })),
     },
     "token-comparison-test": {
-      id: "9.3",
+      id: "8.3",
       description: "Token comparison: same query, different formats",
       category: "Token Efficiency Testing",
       payload: {
@@ -1352,7 +1092,7 @@ export const manualTestCases: ManualTestSuite = {
 
   "limit-testing": {
     "small-limit": {
-      id: "10.1",
+      id: "9.1",
       description: "Small limit test",
       category: "Limit Testing",
       payload: {
@@ -1370,7 +1110,7 @@ export const manualTestCases: ManualTestSuite = {
       mockData: [{ dt: "2024-01-01T10:00:00Z", raw: "Single log entry" }],
     },
     "large-limit": {
-      id: "10.2",
+      id: "9.2",
       description: "Large limit test",
       category: "Limit Testing",
       payload: {

@@ -1324,7 +1324,11 @@ export class BetterstackClient {
           const uniqueKey = `${row.dt}:${row.raw}`;
           if (!seenCombinations.has(uniqueKey)) {
             seenCombinations.add(uniqueKey);
-            allRows.push(row);
+            // Add source attribution to each row for multi-source queries
+            allRows.push({
+              ...row,
+              source: result.source
+            });
           }
         }
       }
