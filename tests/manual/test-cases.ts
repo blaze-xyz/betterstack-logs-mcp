@@ -840,7 +840,8 @@ export const manualTestCases: ManualTestSuite = {
         shouldContain: [
           "Query Results (Compact View)",
           "Cache ID:",
-          /1\. \d{4}-\d{2}-\d{2}[\sT]\d{2}:\d{2}:\d{2}/,
+          "**Logs:**",
+          "1. ",
           "Use 'get_log_details'",
         ],
         shouldNotContain: [
