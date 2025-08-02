@@ -812,9 +812,287 @@ export const manualTestCases: ManualTestSuite = {
     },
   },
 
+  "response-format-testing": {
+    "default-compact-format": {
+      id: "7.1",
+      description: "Default compact format (no response_format specified)",
+      category: "Response Format Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 5,
+        },
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "query_logs",
+          arguments: {
+            sources: ["1386515"],
+            limit: 5,
+          },
+        },
+        id: 71,
+      },
+      expected: {
+        shouldContain: [
+          "Query Results (Compact View)",
+          "Cache ID:",
+          "**Logs:**",
+          "1. ",
+          "[",
+          " | INFO]:",
+          "Use 'get_log_details'",
+        ],
+        shouldNotContain: [
+          "Query Results (Full View)",
+          "raw:",
+          "dt:",
+          '"user_id":12345',
+          '"service":"auth"',
+        ],
+        resultCount: { max: 5 },
+        notes: "Should default to compact format showing timestamp + [Source | LEVEL]: message format with cache ID for drill-down, hiding verbose JSON details",
+      },
+      mockData: [
+        { dt: "2024-01-01T10:00:00Z", raw: '{"message":"User login successful","level":"INFO","user_id":12345}' },
+        { dt: "2024-01-01T10:01:00Z", raw: '{"message":"Database connection established","level":"INFO","service":"auth"}' },
+        { dt: "2024-01-01T10:02:00Z", raw: "Plain text log without JSON structure" },
+      ],
+    },
+    "explicit-compact-format": {
+      id: "7.2",
+      description: "Explicit compact format with JSON message extraction",
+      category: "Response Format Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 8,
+          response_format: "compact",
+        },
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "query_logs",
+          arguments: {
+            sources: ["1386515"],
+            limit: 8,
+            response_format: "compact",
+          },
+        },
+        id: 72,
+      },
+      expected: {
+        shouldContain: [
+          "Query Results (Compact View)",
+          "Cache ID:",
+          "**Logs:**",
+          "[",
+          " | INFO]:",
+          "get_log_details",
+        ],
+        shouldNotContain: [
+          "Query Results (Full View)",
+          '"user_id":12345',
+          '"service":"auth"',
+          "raw:",
+        ],
+        resultCount: { max: 8 },
+        notes: "Should extract messages from JSON logs (message field) and show enhanced compact format [Source | LEVEL]: message, with cache for details",
+      },
+      mockData: [
+        { dt: "2024-01-01T10:00:00Z", raw: '{"message":"User login successful","level":"INFO","user_id":12345}' },
+        { dt: "2024-01-01T10:01:00Z", raw: '{"message":"Database connection established","level":"INFO","service":"auth"}' },
+        { dt: "2024-01-01T10:02:00Z", raw: "Plain text log without JSON structure" },
+      ],
+    },
+    "explicit-full-format": {
+      id: "7.3",
+      description: "Explicit full format with complete raw data",
+      category: "Response Format Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 3,
+          response_format: "full",
+        },
+      },
+      jsonRpcPayload: {
+        jsonrpc: "2.0",
+        method: "tools/call",
+        params: {
+          name: "query_logs",
+          arguments: {
+            sources: ["1386515"],
+            limit: 3,
+            response_format: "full",
+          },
+        },
+        id: 74,
+      },
+      expected: {
+        shouldContain: [
+          "Query Results (Full View)",
+          "**Data:**",
+          "dt: ",
+          'raw: {',
+          "1. ",
+          "2. ",
+        ],
+        shouldNotContain: [
+          "Query Results (Compact View)",
+          "Cache ID:",
+          "get_log_details",
+        ],
+        resultCount: { max: 3 },
+        notes: "Should show complete raw log data in full format with no caching",
+      },
+      mockData: [
+        { dt: "2024-01-01T10:00:00Z", raw: '{"message":"User login successful","level":"INFO","user_id":12345}' },
+        { dt: "2024-01-01T10:01:00Z", raw: '{"message":"Database connection established","level":"INFO","service":"auth"}' },
+        { dt: "2024-01-01T10:02:00Z", raw: "Plain text log without JSON structure" },
+      ],
+    },
+    "compact-format-multi-source": {
+      id: "7.4",
+      description: "Compact format with multiple sources",
+      category: "Response Format Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515", "1442440"],
+          limit: 100,
+          response_format: "compact",
+        },
+      },
+      expected: {
+        shouldContain: [
+          "Query Results (Compact View)",
+          "Cache ID:",
+          "Sources queried:",
+          "**Logs:**",
+          "[",
+          "]:",
+        ],
+        shouldNotContain: [
+          "Query Results (Full View)",
+          "raw:",
+          "dt:",
+        ],
+        resultCount: { max: 100 },
+        notes: "Should show enhanced compact format for multi-source queries with each log displaying its specific source name like [Source Name | LEVEL]: message",
+      },
+      mockData: [
+        { dt: "2024-01-01T10:00:00Z", raw: '{"message":"Spark production log"}' },
+        { dt: "2024-01-01T10:01:00Z", raw: '{"message":"App production log"}' },
+      ],
+    },
+  },
+
+  "token-efficiency-testing": {
+    "large-logs-compact": {
+      id: "8.1",
+      description: "Large logs with compact format (token efficiency)",
+      category: "Token Efficiency Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 50,
+          response_format: "compact",
+        },
+      },
+      expected: {
+        shouldContain: [
+          "Query Results (Compact View)",
+          "Cache ID:",
+          "Total rows: 50",
+          "Use 'get_log_details'",
+        ],
+        shouldNotContain: [
+          "stack_trace",
+          "full_error_details",
+          "large_json_payload",
+        ],
+        resultCount: { max: 50 },
+        notes: "Should dramatically reduce token usage by showing only timestamp + message, hiding verbose stack traces and large JSON payloads",
+      },
+      mockData: Array.from({ length: 50 }, (_, i) => ({
+        dt: `2024-01-01T10:${i.toString().padStart(2, "0")}:00Z`,
+        raw: `{"message":"Log entry ${i + 1}","level":"ERROR","stack_trace":"Very long stack trace with 500+ characters...","large_json_payload":{"data":{"nested":{"deeply":{"verbose":"content"}}}},"error_details":"Extremely verbose error information that would consume many tokens..."}`,
+      })),
+    },
+    "large-logs-full": {
+      id: "8.2",
+      description: "Large logs with full format (token heavy)",
+      category: "Token Efficiency Testing",
+      payload: {
+        name: "query_logs",
+        arguments: {
+          sources: ["1386515"],
+          limit: 50,
+          response_format: "full",
+        },
+      },
+      expected: {
+        shouldContain: [
+          "Query Results (Full View)",
+          "**Data:**",
+          "stack_trace",
+          "large_json_payload",
+          "error_details",
+        ],
+        shouldNotContain: [
+          "Cache ID:",
+          "get_log_details",
+        ],
+        resultCount: { max: 50 },
+        notes: "Should show complete raw data including verbose stack traces and large JSON - will consume many more tokens than compact format",
+      },
+      mockData: Array.from({ length: 50 }, (_, i) => ({
+        dt: `2024-01-01T10:${i.toString().padStart(2, "0")}:00Z`,
+        raw: `{"message":"Log entry ${i + 1}","level":"ERROR","stack_trace":"Very long stack trace with 500+ characters...","large_json_payload":{"data":{"nested":{"deeply":{"verbose":"content"}}}},"error_details":"Extremely verbose error information that would consume many tokens..."}`,
+      })),
+    },
+    "token-comparison-test": {
+      id: "8.3",
+      description: "Token comparison: same query, different formats",
+      category: "Token Efficiency Testing",
+      payload: {
+        name: "comparison_test",
+        arguments: {
+          base_query: {
+            filters: { raw_contains: ["error"] },
+            sources: ["1386515"],
+            limit: 30,
+          },
+          compare_formats: ["compact", "full"],
+        },
+      },
+      expected: {
+        shouldContain: [
+          "Compact format tokens: ~",
+          "Full format tokens: ~",
+          "Token reduction: ~60-80%",
+        ],
+        notes: "Manual comparison test: Run same query with both formats and compare response sizes/token usage",
+      },
+      mockData: Array.from({ length: 30 }, (_, i) => ({
+        dt: `2024-01-01T10:${i.toString().padStart(2, "0")}:00Z`,
+        raw: `{"message":"Error occurred in module ${i + 1}","level":"ERROR","timestamp":"2024-01-01T10:${i.toString().padStart(2, "0")}:00Z","error_code":"ERR_${1000 + i}","stack_trace":"at module${i + 1}.function() line 42\\n  at handler.process() line 128\\n  at main.execute() line 256","request_id":"req_${Date.now()}_${i}","user_context":{"user_id":"user_${10000 + i}","session":"sess_${Math.random().toString(36)}","ip":"192.168.1.${i + 1}"},"environment":"production","service":"api-gateway","version":"1.2.3"}`,
+      })),
+    },
+  },
+
   "limit-testing": {
     "small-limit": {
-      id: "7.1",
+      id: "9.1",
       description: "Small limit test",
       category: "Limit Testing",
       payload: {
@@ -832,7 +1110,7 @@ export const manualTestCases: ManualTestSuite = {
       mockData: [{ dt: "2024-01-01T10:00:00Z", raw: "Single log entry" }],
     },
     "large-limit": {
-      id: "7.2",
+      id: "9.2",
       description: "Large limit test",
       category: "Limit Testing",
       payload: {

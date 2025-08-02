@@ -195,7 +195,10 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     expect(structuredQuery).toBe(expectedStructuredQuery);
 
     // Step 3: Execute full pipeline through MCP and verify final SQL and URL
-    const result = await mcpHelper.callTool("query_logs", params);
+    const result = await mcpHelper.callTool("query_logs", {
+      ...params,
+      response_format: 'full'
+    });
     const responseText = result.content[0].text;
 
     // Step 4: Verify multi-source optimization was used

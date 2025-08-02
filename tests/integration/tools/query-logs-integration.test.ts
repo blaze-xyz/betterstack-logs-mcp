@@ -17,8 +17,8 @@ describe('Query Logs Integration Tests', () => {
   describe('query_logs tool via MCP protocol', () => {
     it('should return properly formatted MCP response with basic query results', async () => {
       const mockData = [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Application started', level: 'INFO' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'User login successful', level: 'INFO' }
+        { source: 'Spark - staging | deprecated', dt: '2024-01-01T10:00:00Z', raw: '{"level":"INFO","message":"Application started"}' },
+        { source: 'Production API Server', dt: '2024-01-01T10:01:00Z', raw: '{"level":"INFO","message":"User login successful"}' }
       ]
 
       globalThis.__MSW_SERVER__.use(
@@ -34,9 +34,9 @@ describe('Query Logs Integration Tests', () => {
       expect(result).toHaveProperty('content')
       expect(Array.isArray(result.content)).toBe(true)
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
-      expect(result.content[0].text).toContain('Application started')
-      expect(result.content[0].text).toContain('User login successful')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
+      expect(result.content[0].text).toContain('[Spark - staging | deprecated | INFO]: Application started')
+      expect(result.content[0].text).toContain('[Production API Server | INFO]: User login successful')
     })
 
     it('should handle queries with source filtering via MCP protocol', async () => {
@@ -58,8 +58,8 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
-      expect(result.content[0].text).toContain('API request processed')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
+      expect(result.content[0].text).toContain('[Production API Server]: API request processed')
       expect(result.content[0].text).toContain('Sources queried: Production API Server')
     })
 
@@ -81,9 +81,9 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
-      expect(result.content[0].text).toContain('Dev environment log')
-      expect(result.content[0].text).toContain('Frontend log')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
+      expect(result.content[0].text).toContain('[Spark - staging | deprecated]: Dev environment log')
+      expect(result.content[0].text).toContain('[Frontend Application]: Frontend log')
     })
 
     it('should handle empty query results via MCP protocol', async () => {
@@ -100,13 +100,13 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('No results found')
     })
 
     it('should handle historical data type via MCP protocol', async () => {
       const mockData = [
-        { dt: '2024-01-01T00:00:00Z', raw: 'Historical log entry', level: 'INFO' }
+        { source: 'Frontend Application', dt: '2024-01-01T00:00:00Z', raw: '{"level":"INFO","message":"Historical log entry"}' }
       ]
 
       globalThis.__MSW_SERVER__.use(
@@ -128,8 +128,8 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
-      expect(result.content[0].text).toContain('Historical log entry')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
+      expect(result.content[0].text).toContain('[Frontend Application | INFO]: Historical log entry')
     })
 
     it('should handle metrics data type via MCP protocol', async () => {
@@ -145,12 +145,13 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        limit: 2
+        limit: 2,
+        response_format: 'full'
       })
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Full View)**')
       expect(result.content[0].text).toContain('metric_name: response_time, value: 125')
       expect(result.content[0].text).toContain('metric_name: cpu_usage, value: 45.2')
     })
@@ -196,8 +197,8 @@ describe('Query Logs Integration Tests', () => {
 
     it('should apply limit parameter correctly via MCP protocol', async () => {
       const mockData = [
-        { dt: '2024-01-01T10:00:00Z', raw: 'Log entry 1' },
-        { dt: '2024-01-01T10:01:00Z', raw: 'Log entry 2' }
+        { source: 'Database Service', dt: '2024-01-01T10:00:00Z', raw: 'Log entry 1' },
+        { source: 'Frontend Application', dt: '2024-01-01T10:01:00Z', raw: 'Log entry 2' }
       ]
 
       globalThis.__MSW_SERVER__.use(
@@ -212,9 +213,9 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
-      expect(result.content[0].text).toContain('Log entry 1')
-      expect(result.content[0].text).toContain('Log entry 2')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
+      expect(result.content[0].text).toContain('[Database Service]: Log entry 1')
+      expect(result.content[0].text).toContain('[Frontend Application]: Log entry 2')
     })
 
     it('should handle complex JSON log data via MCP protocol', async () => {
@@ -243,8 +244,8 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
-      expect(result.content[0].text).toContain('User action performed')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
+      expect(result.content[0].text).toContain(']: User action performed')
     })
 
     it('should handle large result sets with truncation via MCP protocol', async () => {
@@ -261,12 +262,13 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        limit: 15
+        limit: 15,
+        response_format: 'full'
       })
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Full View)**')
       expect(result.content[0].text).toContain('Log entry 1')
       expect(result.content[0].text).toContain('Log entry 10')
       expect(result.content[0].text).toContain('... and 5 more rows')
@@ -291,9 +293,9 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
-      expect(result.content[0].text).toContain('API log')
-      expect(result.content[0].text).toContain('Frontend log')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
+      expect(result.content[0].text).toContain(']: API log')
+      expect(result.content[0].text).toContain(']: Frontend log')
     })
 
     it('should properly format JSON objects in query results via MCP protocol', async () => {
@@ -332,7 +334,8 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        limit: 1
+        limit: 1,
+        response_format: 'full'
       })
 
       expect(result).toHaveProperty('content')
