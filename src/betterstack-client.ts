@@ -13,6 +13,8 @@ import {
   BetterstackApiSourceGroup,
   TableSchema,
   TableColumn,
+  LogCache,
+  LogEntry,
 } from "./types.js";
 import fs from "fs";
 import path from "path";
@@ -145,6 +147,7 @@ export class BetterstackClient {
   private sourceGroupsCache: { data: SourceGroup[]; timestamp: number } | null =
     null;
   private schemaCache: Map<string, TableSchema> = new Map();
+  private logCache: Map<string, LogCache> = new Map();
   private config: BetterstackConfig;
   private static rateLimiter = pLimit(RATE_LIMIT); // All instances share the same rate limiter
 
@@ -1644,5 +1647,111 @@ export class BetterstackClient {
     }
 
     return results;
+  }
+
+  // Log caching methods for compact query + detail retrieval
+
+  /**
+   * Generates a cache ID from query parameters and SQL
+   */
+  generateCacheId(query: string, options: QueryOptions): string {
+    const crypto = require('crypto');
+    const cacheKey = JSON.stringify({ query, options: {
+      sources: options.sources,
+      sourceGroup: options.sourceGroup,
+      dataType: options.dataType,
+      limit: options.limit
+    }});
+    return crypto.createHash('md5').update(cacheKey).digest('hex').substring(0, 12);
+  }
+
+  /**
+   * Caches log results for compact query retrieval
+   */
+  cacheLogResults(cacheId: string, logs: LogEntry[], metadata: LogCache['metadata']): void {
+    const cache: LogCache = {
+      queryHash: cacheId,
+      timestamp: Date.now(),
+      ttl: this.config.cacheTtlSeconds * 1000,
+      logs,
+      metadata
+    };
+    
+    this.logCache.set(cacheId, cache);
+    this.cleanupExpiredLogCache();
+    
+    logToFile('DEBUG', 'Cached log results', {
+      cacheId,
+      logCount: logs.length,
+      ttl: this.config.cacheTtlSeconds
+    });
+  }
+
+  /**
+   * Retrieves cached log details by cache ID and index
+   */
+  getCachedLogDetails(cacheId: string, logIndex: number): { success: true; log: LogEntry; metadata: LogCache['metadata'] } | { success: false; error: string } {
+    const cache = this.logCache.get(cacheId);
+    
+    if (!cache) {
+      return { success: false, error: 'Cache ID not found or expired' };
+    }
+    
+    if (!this.isCacheValid(cache.timestamp)) {
+      this.logCache.delete(cacheId);
+      return { success: false, error: 'Cache has expired' };
+    }
+    
+    if (logIndex < 0 || logIndex >= cache.logs.length) {
+      return { success: false, error: `Invalid log index: ${logIndex}. Valid range: 0-${cache.logs.length - 1}` };
+    }
+    
+    return {
+      success: true,
+      log: cache.logs[logIndex],
+      metadata: cache.metadata
+    };
+  }
+
+  /**
+   * Cleans up expired log cache entries
+   */
+  private cleanupExpiredLogCache(): void {
+    const now = Date.now();
+    let cleanedCount = 0;
+    
+    for (const [cacheId, cache] of this.logCache.entries()) {
+      if (now - cache.timestamp > cache.ttl) {
+        this.logCache.delete(cacheId);
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      logToFile('DEBUG', 'Cleaned up expired log cache entries', { cleanedCount });
+    }
+  }
+
+  /**
+   * Gets cache statistics for debugging
+   */
+  getLogCacheStats(): { totalCaches: number; totalLogs: number; oldestCacheAge: number | null } {
+    const now = Date.now();
+    let totalLogs = 0;
+    let oldestCacheAge: number | null = null;
+    
+    for (const cache of this.logCache.values()) {
+      totalLogs += cache.logs.length;
+      const age = now - cache.timestamp;
+      if (oldestCacheAge === null || age > oldestCacheAge) {
+        oldestCacheAge = age;
+      }
+    }
+    
+    return {
+      totalCaches: this.logCache.size,
+      totalLogs,
+      oldestCacheAge
+    };
   }
 }

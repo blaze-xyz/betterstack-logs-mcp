@@ -26,6 +26,21 @@ import { createLogger } from '../utils/logging.js';
 const logToFile = createLogger(import.meta.url, 'QUERY-TOOLS');
 
 /**
+ * Extracts the message field from a raw log JSON string
+ * Fallback hierarchy: message -> msg -> raw string itself
+ */
+export function extractMessage(rawLog: string): string {
+  try {
+    const parsed = JSON.parse(rawLog);
+    // Try common message field names
+    return parsed.message || parsed.msg || rawLog;
+  } catch {
+    // If JSON parsing fails, return the raw string
+    return rawLog;
+  }
+}
+
+/**
  * Builds a ClickHouse SQL query from structured parameters
  * Always queries 'dt' (timestamp) and 'raw' (log message) fields
  */
@@ -469,11 +484,17 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
       sources: z.array(z.string()).optional().describe("Specific source IDs or names to query (optional)"),
       source_group: z.string().optional().describe("Source group name to query (optional)"),
       
+      // RESPONSE FORMAT - How to display results
+      response_format: z.enum(['compact', 'full']).default('compact').describe("Response format: 'compact' shows timestamp and message only (default), 'full' shows complete raw log data"),
+      
     },
-    async ({ filters, limit, sources, source_group }) => {
+    async ({ filters, limit, sources, source_group, response_format }) => {
       try {
+        // Ensure response_format defaults to 'compact' if not provided
+        const actualResponseFormat = response_format || 'compact';
+        
         logToFile('INFO', 'Executing structured query_logs tool', { 
-          filters, limit, sources, source_group 
+          filters, limit, sources, source_group, response_format: actualResponseFormat
         });
         
         // Step 1: Determine data type automatically based on time filters
@@ -507,39 +528,79 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
         const result = await client.executeQuery(query, options);
         logToFile('INFO', 'Query executed successfully', { resultCount: result.data?.length, meta: result.meta });
         
+        // Prepare cache metadata
+        const cacheMetadata = {
+          sources_queried: result.meta?.sources_queried || [],
+          executed_sql: result.meta?.executed_sql || query,
+          request_url: result.meta?.request_url || 'unknown',
+          api_used: result.meta?.api_used || 'clickhouse',
+          total_rows: result.meta?.total_rows || result.data.length
+        };
+        
+        let cacheId: string | null = null;
+        
+        // For compact format, cache the results for later detail retrieval
+        if (actualResponseFormat === 'compact' && result.data.length > 0) {
+          cacheId = client.generateCacheId(query, options);
+          const logEntries = result.data.map((row: any) => ({
+            dt: row.dt || '',
+            raw: row.raw || ''
+          }));
+          client.cacheLogResults(cacheId, logEntries, cacheMetadata);
+        }
+        
+        // Build response based on format
+        const formatType = actualResponseFormat === 'compact' ? 'Compact View' : 'Full View';
         const resultText = [
-          `**Query Results**`,
-          `Sources queried: ${result.meta?.sources_queried?.join(', ') || 'unknown'}`,
-          `Total rows: ${result.meta?.total_rows || result.data.length}`,
-          `Executed SQL: \`${result.meta?.executed_sql || query}\``,
-          `Request URL: ${result.meta?.request_url || 'unknown'}`,
-          `API used: ${result.meta?.api_used || 'clickhouse'}`,
+          `**Query Results (${formatType})**`,
+          ...(cacheId ? [`Cache ID: ${cacheId}`] : []),
+          `Sources queried: ${cacheMetadata.sources_queried.join(', ') || 'unknown'}`,
+          `Total rows: ${cacheMetadata.total_rows}`,
+          `Executed SQL: \`${cacheMetadata.executed_sql}\``,
+          `Request URL: ${cacheMetadata.request_url}`,
+          `API used: ${cacheMetadata.api_used}`,
           '',
-          '**Data:**'
+          actualResponseFormat === 'compact' ? '**Logs:**' : '**Data:**'
         ];
 
         if (result.data.length === 0) {
           resultText.push('No results found.');
         } else {
-          // Format first few rows for display
-          const displayRows = result.data.slice(0, 10);
-          const formatted = displayRows.map((row, index) => {
-            const rowData = typeof row === 'object' ? 
-              Object.entries(row).map(([key, value]) => {
-                // Handle object values (like json field) by stringifying them
-                const formattedValue = (typeof value === 'object' && value !== null) 
-                  ? JSON.stringify(value)
-                  : String(value);
-                return `${key}: ${formattedValue}`;
-              }).join(', ') :
-              String(row);
-            return `${index + 1}. ${rowData}`;
-          });
-          
-          resultText.push(...formatted);
-          
-          if (result.data.length > 10) {
-            resultText.push(`... and ${result.data.length - 10} more rows`);
+          if (actualResponseFormat === 'compact') {
+            // Compact format: show timestamp and extracted message
+            const formatted = result.data.map((row: any, index: number) => {
+              const timestamp = row.dt || 'Unknown time';
+              const message = extractMessage(row.raw || '');
+              return `${index + 1}. ${timestamp}: ${message}`;
+            });
+            
+            resultText.push(...formatted);
+            
+            if (cacheId) {
+              resultText.push('');
+              resultText.push(`Use 'get_log_details' with cache_id='${cacheId}' and log_index=N to see full details.`);
+            }
+          } else {
+            // Full format: show complete data (original behavior)
+            const displayRows = result.data.slice(0, 10);
+            const formatted = displayRows.map((row, index) => {
+              const rowData = typeof row === 'object' ? 
+                Object.entries(row).map(([key, value]) => {
+                  // Handle object values (like json field) by stringifying them
+                  const formattedValue = (typeof value === 'object' && value !== null) 
+                    ? JSON.stringify(value)
+                    : String(value);
+                  return `${key}: ${formattedValue}`;
+                }).join(', ') :
+                String(row);
+              return `${index + 1}. ${rowData}`;
+            });
+            
+            resultText.push(...formatted);
+            
+            if (result.data.length > 10) {
+              resultText.push(`... and ${result.data.length - 10} more rows`);
+            }
           }
         }
 
@@ -569,6 +630,71 @@ export function registerQueryTools(server: McpServer, client: BetterstackClient)
 
 **Error Details:**
 ${errorDetails}`
+            }
+          ]
+        };
+      }
+    }
+  );
+
+  // Get detailed log information from cached compact query results
+  server.tool(
+    "get_log_details",
+    {
+      cache_id: z.string().describe("Cache ID from a previous compact query_logs response"),
+      log_index: z.number().min(0).describe("Zero-based index of the log entry from the compact results")
+    },
+    async ({ cache_id, log_index }) => {
+      try {
+        logToFile('INFO', 'Executing get_log_details tool', { cache_id, log_index });
+        
+        const result = client.getCachedLogDetails(cache_id, log_index);
+        
+        if (!result.success) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `❌ ${result.error}`
+              }
+            ]
+          };
+        }
+        
+        const { log, metadata } = result;
+        
+        const resultText = [
+          `**Log Details (Index ${log_index})**`,
+          `Cache ID: ${cache_id}`,
+          `Timestamp: ${log.dt}`,
+          `Source: ${metadata.sources_queried?.join(', ') || 'Unknown'}`,
+          '',
+          '**Full Raw Data:**',
+          log.raw
+        ];
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: resultText.join('\n')
+            }
+          ]
+        };
+      } catch (error: any) {
+        logToFile('ERROR', 'get_log_details failed', { 
+          error: error?.message || error?.toString(),
+          cache_id,
+          log_index,
+          stack: error?.stack
+        });
+        
+        const errorMessage = error?.message || error?.toString() || 'Unknown error';
+        return {
+          content: [
+            {
+              type: "text",
+              text: `❌ Failed to retrieve log details: ${errorMessage}`
             }
           ]
         };

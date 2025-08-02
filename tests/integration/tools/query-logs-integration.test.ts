@@ -34,7 +34,7 @@ describe('Query Logs Integration Tests', () => {
       expect(result).toHaveProperty('content')
       expect(Array.isArray(result.content)).toBe(true)
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('Application started')
       expect(result.content[0].text).toContain('User login successful')
     })
@@ -58,7 +58,7 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('API request processed')
       expect(result.content[0].text).toContain('Sources queried: Production API Server')
     })
@@ -81,7 +81,7 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('Dev environment log')
       expect(result.content[0].text).toContain('Frontend log')
     })
@@ -100,7 +100,7 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('No results found')
     })
 
@@ -128,7 +128,7 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('Historical log entry')
     })
 
@@ -145,12 +145,13 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        limit: 2
+        limit: 2,
+        response_format: 'full'
       })
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Full View)**')
       expect(result.content[0].text).toContain('metric_name: response_time, value: 125')
       expect(result.content[0].text).toContain('metric_name: cpu_usage, value: 45.2')
     })
@@ -212,7 +213,7 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('Log entry 1')
       expect(result.content[0].text).toContain('Log entry 2')
     })
@@ -243,7 +244,7 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('User action performed')
     })
 
@@ -261,12 +262,13 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        limit: 15
+        limit: 15,
+        response_format: 'full'
       })
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Full View)**')
       expect(result.content[0].text).toContain('Log entry 1')
       expect(result.content[0].text).toContain('Log entry 10')
       expect(result.content[0].text).toContain('... and 5 more rows')
@@ -291,7 +293,7 @@ describe('Query Logs Integration Tests', () => {
 
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
-      expect(result.content[0].text).toContain('**Query Results**')
+      expect(result.content[0].text).toContain('**Query Results (Compact View)**')
       expect(result.content[0].text).toContain('API log')
       expect(result.content[0].text).toContain('Frontend log')
     })
@@ -332,7 +334,8 @@ describe('Query Logs Integration Tests', () => {
       )
 
       const result = await mcpHelper.callTool('query_logs', {
-        limit: 1
+        limit: 1,
+        response_format: 'full'
       })
 
       expect(result).toHaveProperty('content')

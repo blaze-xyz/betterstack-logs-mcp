@@ -149,3 +149,23 @@ export interface TableSchema {
   availableFields: string[];
   cacheTimestamp: number;
 }
+
+// Log caching types for compact query + detail retrieval
+export interface LogEntry {
+  dt: string;
+  raw: string;
+}
+
+export interface LogCache {
+  queryHash: string;
+  timestamp: number;
+  ttl: number;
+  logs: LogEntry[];
+  metadata: {
+    sources_queried: string[];
+    executed_sql: string;
+    request_url: string;
+    api_used: string;
+    total_rows: number;
+  };
+}
