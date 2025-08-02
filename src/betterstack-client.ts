@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosResponse } from "axios";
 import pLimit from "p-limit";
+import crypto from "crypto";
 import { BetterstackConfig } from "./config.js";
 import {
   Source,
@@ -1655,7 +1656,6 @@ export class BetterstackClient {
    * Generates a cache ID from query parameters and SQL
    */
   generateCacheId(query: string, options: QueryOptions): string {
-    const crypto = require('crypto');
     const cacheKey = JSON.stringify({ query, options: {
       sources: options.sources,
       sourceGroup: options.sourceGroup,
