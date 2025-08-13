@@ -93,12 +93,12 @@ Add to your `claude_desktop_config.json`:
 {
   "mcpServers": {
     "betterstack-logs": {
-      "command": "node",
-      "args": ["path/to/betterstack-logs-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["@blaze-money/betterstack-logs-mcp"],
       "env": {
         "BETTERSTACK_CLICKHOUSE_USERNAME": "your_clickhouse_username",
         "BETTERSTACK_CLICKHOUSE_PASSWORD": "your_clickhouse_password",
-        "BETTERSTACK_CLICKHOUSE_QUERY_ENDPOINT": "your_clickhouse_endpoint_url",
+        "BETTERSTACK_CLICKHOUSE_ENDPOINT": "your_clickhouse_endpoint_url",
         "BETTERSTACK_API_TOKEN": "your_api_token_here",
         "BETTERSTACK_DEFAULT_SOURCE_GROUP": "production"
       }
