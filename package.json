@@ -1,6 +1,6 @@
 {
   "name": "@blaze-money/betterstack-logs-mcp",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "MCP server for querying and analyzing Betterstack logs via npx",
   "license": "MIT",
   "author": "Blaze",
@@ -14,9 +14,9 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/betterstack-logs-mcp.git"
+    "url": "https://github.com/blaze-xyz/betterstack-logs-mcp.git"
   },
-  "homepage": "https://github.com/your-org/betterstack-logs-mcp#readme",
+  "homepage": "https://github.com/blaze-xyz/betterstack-logs-mcp#readme",
   "engines": {
     "node": ">=18.0.0"
   },
