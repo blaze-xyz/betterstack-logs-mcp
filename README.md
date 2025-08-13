@@ -21,14 +21,14 @@ Add this to your Claude Code MCP configuration file:
 ```json
 {
   "mcpServers": {
-    "betterstack-logs": {
+    "betterstack": {
       "command": "npx",
-      "args": ["@blaze-money/betterstack-logs-mcp"],
+      "args": ["-y", "@blaze-money/betterstack-logs-mcp"],
       "env": {
         "BETTERSTACK_API_TOKEN": "your-api-token-here",
         "BETTERSTACK_CLICKHOUSE_USERNAME": "your-clickhouse-username",
         "BETTERSTACK_CLICKHOUSE_PASSWORD": "your-clickhouse-password",
-        "BETTERSTACK_CLICKHOUSE_ENDPOINT": "your-clickhouse-endpoint"
+        "BETTERSTACK_CLICKHOUSE_QUERY_ENDPOINT": "your-clickhouse-endpoint"
       }
     }
   }
@@ -92,13 +92,13 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "betterstack-logs": {
+    "betterstack": {
       "command": "npx",
-      "args": ["@blaze-money/betterstack-logs-mcp"],
+      "args": ["-y", "@blaze-money/betterstack-logs-mcp"],
       "env": {
         "BETTERSTACK_CLICKHOUSE_USERNAME": "your_clickhouse_username",
         "BETTERSTACK_CLICKHOUSE_PASSWORD": "your_clickhouse_password",
-        "BETTERSTACK_CLICKHOUSE_ENDPOINT": "your_clickhouse_endpoint_url",
+        "BETTERSTACK_CLICKHOUSE_QUERY_ENDPOINT": "your_clickhouse_endpoint_url",
         "BETTERSTACK_API_TOKEN": "your_api_token_here",
         "BETTERSTACK_DEFAULT_SOURCE_GROUP": "production"
       }

@@ -55,9 +55,9 @@ Environment Variables (Required):
 Claude Code MCP Configuration Example:
   {
     "mcpServers": {
-      "betterstack-logs": {
+      "betterstack": {
         "command": "npx",
-        "args": ["@blaze-money/betterstack-logs-mcp"],
+        "args": ["-y", "@blaze-money/betterstack-logs-mcp"],
         "env": {
           "BETTERSTACK_API_TOKEN": "your-token-here",
           "BETTERSTACK_CLICKHOUSE_USERNAME": "your-username",
