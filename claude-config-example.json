@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "betterstack-logs": {
+      "command": "npx",
+      "args": ["@blaze-money/betterstack-logs-mcp"],
+      "env": {
+        "BETTERSTACK_API_TOKEN": "your-api-token-here",
+        "BETTERSTACK_CLICKHOUSE_USERNAME": "your-clickhouse-username",
+        "BETTERSTACK_CLICKHOUSE_PASSWORD": "your-clickhouse-password",
+        "BETTERSTACK_CLICKHOUSE_ENDPOINT": "your-clickhouse-endpoint"
+      }
+    }
+  }
+}
