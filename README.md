@@ -23,7 +23,7 @@ Add this to your Claude Code MCP configuration file:
   "mcpServers": {
     "betterstack-logs": {
       "command": "npx",
-      "args": ["@blaze-money/betterstack-logs-mcp"],
+      "args": ["-y", "@blaze-money/betterstack-logs-mcp"],
       "env": {
         "BETTERSTACK_API_TOKEN": "your-api-token-here",
         "BETTERSTACK_CLICKHOUSE_USERNAME": "your-clickhouse-username",
@@ -94,7 +94,7 @@ Add to your `claude_desktop_config.json`:
   "mcpServers": {
     "betterstack-logs": {
       "command": "npx",
-      "args": ["@blaze-money/betterstack-logs-mcp"],
+      "args": ["-y", "@blaze-money/betterstack-logs-mcp"],
       "env": {
         "BETTERSTACK_CLICKHOUSE_USERNAME": "your_clickhouse_username",
         "BETTERSTACK_CLICKHOUSE_PASSWORD": "your_clickhouse_password",
