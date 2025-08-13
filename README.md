@@ -21,7 +21,7 @@ Add this to your Claude Code MCP configuration file:
 ```json
 {
   "mcpServers": {
-    "betterstack-logs": {
+    "betterstack": {
       "command": "npx",
       "args": ["-y", "@blaze-money/betterstack-logs-mcp"],
       "env": {
@@ -92,7 +92,7 @@ Add to your `claude_desktop_config.json`:
 ```json
 {
   "mcpServers": {
-    "betterstack-logs": {
+    "betterstack": {
       "command": "npx",
       "args": ["-y", "@blaze-money/betterstack-logs-mcp"],
       "env": {
