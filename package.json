@@ -56,7 +56,6 @@
     "test:real-mcp:list": "npm run test:real-mcp -- --list"
   },
   "dependencies": {
-    "@blaze-money/betterstack-logs-mcp": "^1.0.2",
     "@modelcontextprotocol/sdk": "^1.15.0",
     "axios": "^1.10.0",
     "csv-stringify": "^6.5.2",
