@@ -1,6 +1,6 @@
 {
   "name": "@blaze-money/betterstack-logs-mcp",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MCP server for querying and analyzing Betterstack logs via npx",
   "license": "MIT",
   "author": "Blaze",
