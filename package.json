@@ -1,19 +1,40 @@
 {
-  "name": "betterstack-logs-mcp",
-  "version": "1.0.0",
-  "description": "MCP server for querying and analyzing Betterstack logs",
+  "name": "@blaze-money/betterstack-logs-mcp",
+  "version": "1.0.3",
+  "description": "MCP server for querying and analyzing Betterstack logs via npx",
   "license": "MIT",
   "author": "Blaze",
   "type": "module",
+  "keywords": [
+    "mcp",
+    "betterstack",
+    "logs",
+    "claude",
+    "model-context-protocol"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/blaze-xyz/betterstack-logs-mcp.git"
+  },
+  "homepage": "https://github.com/blaze-xyz/betterstack-logs-mcp#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "bin": {
     "betterstack-logs-mcp": "dist/src/index.js"
   },
   "files": [
-    "dist"
+    "dist/src/**/*",
+    "dist/scripts/**/*",
+    "README.md",
+    "LICENSE",
+    "claude-config-example.json"
   ],
   "scripts": {
-    "build": "tsc && shx chmod +x dist/src/index.js dist/scripts/*.js",
+    "clean": "shx rm -rf dist",
+    "build": "npm run clean && tsc && shx chmod +x dist/src/index.js dist/scripts/*.js",
     "prepare": "npm run build",
+    "prepublishOnly": "npm run build && npm test",
     "watch": "tsc --watch",
     "dev": "tsc --watch",
     "inspect": "node --inspect dist/src/index.js",

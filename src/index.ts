@@ -35,12 +35,38 @@ const { values } = parseArgs({
 
 if (values.help) {
   console.log(`
-Usage: betterstack-logs-mcp [options]
+BetterStack Logs MCP Server - Model Context Protocol server for log analysis
+
+Usage: 
+  npx @blaze-money/betterstack-logs-mcp [options]
+  betterstack-logs-mcp [options]
 
 Options:
   -t, --transport <type>  Transport type: stdio or http (default: stdio)
   -p, --port <port>       Port for HTTP transport (default: 3000)
   -h, --help              Show this help message
+
+Environment Variables (Required):
+  BETTERSTACK_API_TOKEN           Your BetterStack API token
+  BETTERSTACK_CLICKHOUSE_USERNAME ClickHouse database username  
+  BETTERSTACK_CLICKHOUSE_PASSWORD ClickHouse database password
+  BETTERSTACK_CLICKHOUSE_ENDPOINT ClickHouse connection endpoint
+
+Claude Code MCP Configuration Example:
+  {
+    "mcpServers": {
+      "betterstack-logs": {
+        "command": "npx",
+        "args": ["@blaze-money/betterstack-logs-mcp"],
+        "env": {
+          "BETTERSTACK_API_TOKEN": "your-token-here",
+          "BETTERSTACK_CLICKHOUSE_USERNAME": "your-username",
+          "BETTERSTACK_CLICKHOUSE_PASSWORD": "your-password",
+          "BETTERSTACK_CLICKHOUSE_ENDPOINT": "your-endpoint"
+        }
+      }
+    }
+  }
   `);
   process.exit(0);
 }
@@ -73,7 +99,19 @@ try {
   logToFile('INFO', 'Betterstack client initialized');
 } catch (error) {
   logToFile('ERROR', 'Failed to initialize Betterstack client', error);
-  console.error('Failed to initialize Betterstack client:', error);
+  console.error('❌ BetterStack Logs MCP Server - Configuration Error');
+  console.error('');
+  if (error instanceof Error && error.message.includes('Missing required environment variables')) {
+    console.error('Missing required environment variables. Please ensure you have set:');
+    console.error('  • BETTERSTACK_API_TOKEN');
+    console.error('  • BETTERSTACK_CLICKHOUSE_USERNAME');
+    console.error('  • BETTERSTACK_CLICKHOUSE_PASSWORD');
+    console.error('  • BETTERSTACK_CLICKHOUSE_ENDPOINT');
+    console.error('');
+    console.error('Run with --help for configuration examples.');
+  } else {
+    console.error('Error:', error);
+  }
   process.exit(1);
 }
 

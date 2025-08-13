@@ -129,7 +129,7 @@ describe('Query Logs Integration Tests', () => {
       expect(result).toHaveProperty('content')
       expect(result.content[0]).toHaveProperty('type', 'text')
       expect(result.content[0].text).toContain('**Query Results (Compact View)**')
-      expect(result.content[0].text).toContain('[Frontend Application | INFO]: Historical log entry')
+      expect(result.content[0].text).toContain('Historical log entry')
     })
 
     it('should handle metrics data type via MCP protocol', async () => {

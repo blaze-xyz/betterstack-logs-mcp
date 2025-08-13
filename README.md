@@ -10,7 +10,43 @@ An MCP (Model Context Protocol) server that enables AI assistants to query and a
 - **Historical data**: Access both recent and archived logs
 - **AI-friendly**: Intelligent source selection based on query context
 
-## Installation
+## Quick Start with NPX (Recommended)
+
+The easiest way to use this MCP server is via NPX - no installation required!
+
+### 1. Add to Claude Code Configuration
+
+Add this to your Claude Code MCP configuration file:
+
+```json
+{
+  "mcpServers": {
+    "betterstack-logs": {
+      "command": "npx",
+      "args": ["@blaze-money/betterstack-logs-mcp"],
+      "env": {
+        "BETTERSTACK_API_TOKEN": "your-api-token-here",
+        "BETTERSTACK_CLICKHOUSE_USERNAME": "your-clickhouse-username",
+        "BETTERSTACK_CLICKHOUSE_PASSWORD": "your-clickhouse-password",
+        "BETTERSTACK_CLICKHOUSE_ENDPOINT": "your-clickhouse-endpoint"
+      }
+    }
+  }
+}
+```
+
+### 2. Get Your Credentials
+
+- **API Token**: Get from [BetterStack API settings](https://betterstack.com/team/api)
+- **ClickHouse credentials**: Available in your BetterStack team settings under "Log destinations"
+
+### 3. Restart Claude
+
+Restart Claude Code to load the new MCP server. The server will be automatically downloaded and started via NPX.
+
+## Local Development Installation
+
+If you want to develop or modify the server locally:
 
 1. Clone this repository
 2. Install dependencies: `npm install`
