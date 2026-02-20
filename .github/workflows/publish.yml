@@ -9,7 +9,6 @@ jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
-    # Skip the automated version bump commits this workflow creates
     if: github.actor != 'github-actions[bot]'
     permissions:
       contents: write  # Needed to push version bump back to main
@@ -62,7 +61,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Bump version
-        run: npm version ${{ steps.bump_type.outputs.bump }} -m "chore: bump version to %s [skip ci]"
+        run: |
+          npm version ${{ steps.bump_type.outputs.bump }} -m "chore: bump version to %s [skip ci]"
 
       - name: Push version bump
         run: git push
