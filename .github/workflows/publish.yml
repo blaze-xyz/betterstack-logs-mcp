@@ -1,9 +1,7 @@
 name: Publish
 
 on:
-  pull_request:
-    types:
-      - closed
+  push:
     branches:
       - main
 
@@ -11,7 +9,7 @@ jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
-    if: github.event.pull_request.merged == true
+    if: github.actor != 'github-actions[bot]'
     permissions:
       contents: write  # Needed to push version bump back to main
       id-token: write  # Required for OIDC trusted publishing
@@ -19,8 +17,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          ref: main  # Ensure we're on the latest main after merge
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -29,19 +25,34 @@ jobs:
           registry-url: 'https://registry.npmjs.org'
           cache: 'npm'
 
+      - name: Upgrade npm (OIDC trusted publishing requires npm >= 11.5.1)
+        run: npm install -g npm@latest
+
       - name: Install dependencies
         run: npm ci
 
       - name: Run unit tests
         run: npm run test:unit
 
-      - name: Determine version bump type
+      - name: Determine version bump type from PR label
         id: bump_type
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
-          if echo "$LABELS" | grep -q '"major"'; then
+          SHA="${{ github.sha }}"
+          PR_NUMBER=$(gh api "repos/${{ github.repository }}/commits/$SHA/pulls" --jq '.[0].number // empty' 2>/dev/null || echo "")
+
+          if [ -n "$PR_NUMBER" ]; then
+            LABELS=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq '[.labels[].name] | join(",")' 2>/dev/null || echo "")
+            echo "PR #$PR_NUMBER labels: $LABELS"
+          else
+            LABELS=""
+            echo "No associated PR found — defaulting to patch"
+          fi
+
+          if echo "$LABELS" | grep -q 'major'; then
             echo "bump=major" >> $GITHUB_OUTPUT
-          elif echo "$LABELS" | grep -q '"minor"'; then
+          elif echo "$LABELS" | grep -q 'minor'; then
             echo "bump=minor" >> $GITHUB_OUTPUT
           else
             echo "bump=patch" >> $GITHUB_OUTPUT
@@ -53,7 +64,8 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Bump version
-        run: npm version ${{ steps.bump_type.outputs.bump }} -m "chore: bump version to %s [skip ci]"
+        run: |
+          npm version ${{ steps.bump_type.outputs.bump }} -m "chore: bump version to %s [skip ci]"
 
       - name: Push version bump
         run: git push
