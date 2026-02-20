@@ -33,10 +33,12 @@ describe('Query Logs Tool', () => {
       const result = await client.executeQuery(query)
 
       expect(result.data).toHaveLength(3)
+      // Multi-source execution merges results sorted by dt DESC and adds source field
       expect(result.data[0]).toEqual({
-        dt: '2024-01-01T10:00:00Z',
-        raw: 'Application started',
-        level: 'INFO'
+        dt: '2024-01-01T10:02:00Z',
+        raw: 'Database connection error',
+        level: 'ERROR',
+        source: 'Spark - staging | deprecated'
       })
       // By default, all sources are queried when no filter is specified
       expect(result.meta?.sources_queried).toEqual(['Spark - staging | deprecated', 'Production API Server', 'Frontend Application', 'Database Service'])
@@ -165,8 +167,9 @@ describe('Query Logs Tool', () => {
       const result = await client.executeQuery(query, options)
 
       expect(result.data).toHaveLength(3)
-      expect(result.data[0].metric_name).toBe('response_time')
-      expect(result.data[0].value).toBe(125)
+      // Multi-source execution merges results sorted by dt DESC (most recent first)
+      expect(result.data[0].metric_name).toBe('memory_usage')
+      expect(result.data[0].value).toBe(78.5)
     })
 
     it('should handle ClickHouse API errors gracefully', async () => {
