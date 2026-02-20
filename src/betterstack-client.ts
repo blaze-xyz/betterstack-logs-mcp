@@ -1302,10 +1302,18 @@ export class BetterstackClient {
           responseData: (error as any)?.response?.data,
         });
 
+        // Extract error message from various error shapes:
+        // - Error instances: use .message
+        // - BetterstackApiError (plain object from Axios interceptor): use .message
+        // - Other objects: stringify
+        const errorMessage = error instanceof Error
+          ? error.message
+          : (error as any)?.message || String(error);
+
         sourceResults.push({
           source: source.name,
           success: false,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage,
         });
       }
     }

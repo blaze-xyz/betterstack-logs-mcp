@@ -150,20 +150,19 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const result = await mcpHelper.callTool("query_logs", params);
     const responseText = result.content[0].text;
 
-    // Verify the final SQL query format
-    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Production API Server' as source, dt, raw FROM remote(t12345_production_api_logs) UNION DISTINCT SELECT 'Production API Server' as source, dt, raw FROM s3Cluster(primary, t12345_production_api_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1)) WHERE (ilike(raw, '%api%')) AND ilike(raw, '%"level":"error"%') AND dt >= now() - INTERVAL 6 HOUR ORDER BY dt DESC LIMIT 75 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
-    expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
+    // With per-source execution, multi-source queries use the base query template (not expanded UNION SQL)
+    // and the API used is "multi-source-optimized" instead of "clickhouse"
+    expect(responseText).toContain('API used: multi-source-optimized');
+    expect(responseText).toContain('Sources queried: Production API Server, Frontend Application');
 
-    // Step 4: Verify union query URL (no optimization parameters for union queries)
-    // Multi-source union queries also use the base ClickHouse endpoint without additional URL parameters
-    const expectedUrl = "https://clickhouse.betterstack.com/";
-    expect(responseText).toContain(`Request URL: ${expectedUrl}`);
+    // Step 4: Verify the executed SQL shows the original base query template
+    expect(responseText).toContain("SELECT dt, raw FROM union_subquery WHERE");
+    expect(responseText).toContain("ilike(raw, '%api%')");
+    expect(responseText).toContain('ilike(raw, \'%"level":"error"%\')');
+    expect(responseText).toContain("dt >= now() - INTERVAL 6 HOUR");
 
-    // Step 5: Verify that union query URL does NOT contain historical optimization parameters
-    // This ensures we're truly using the base URL and not accidentally using historical format
-    expect(responseText).not.toContain("range-from=");
-    expect(responseText).not.toContain("range-to=");
-    expect(responseText).not.toContain("table=");
+    // Step 5: Request URL is 'unknown' for multi-source-optimized (no single URL)
+    expect(responseText).toContain("Request URL: unknown");
   });
 
   it("Multi-Source Historical Pipeline: Step-by-step validation", async () => {
@@ -280,20 +279,23 @@ describe("Query Generation Pipeline Step-by-Step Integration Tests", () => {
     const expectedStructuredQuery = `SELECT dt, raw FROM union_subquery WHERE (ilike(raw, '%service%')) AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
     expect(structuredQuery).toBe(expectedStructuredQuery);
 
-    // Step 3: Verify the final SQL query format (should include all 3 sources in Development Environment group)
-    const expectedFinalSQL = `SELECT source, dt, raw FROM ((SELECT 'Spark - staging | deprecated' as source, dt, raw FROM remote(t12345_spark_staging_logs) UNION DISTINCT SELECT 'Spark - staging | deprecated' as source, dt, raw FROM s3Cluster(primary, t12345_spark_staging_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Frontend Application' as source, dt, raw FROM remote(t12345_frontend_app_logs) UNION DISTINCT SELECT 'Frontend Application' as source, dt, raw FROM s3Cluster(primary, t12345_frontend_app_s3) WHERE _row_type = 1) UNION ALL (SELECT 'Database Service' as source, dt, raw FROM remote(t12345_database_service_logs) UNION DISTINCT SELECT 'Database Service' as source, dt, raw FROM s3Cluster(primary, t12345_database_service_s3) WHERE _row_type = 1)) WHERE (ilike(raw, '%service%')) AND ilike(raw, '%"level":"info"%') AND dt >= now() - INTERVAL 12 HOUR ORDER BY dt DESC LIMIT 120 SETTINGS output_format_json_array_of_rows = 1 FORMAT JSONEachRow`;
-    expect(responseText).toContain(`Executed SQL: \`${expectedFinalSQL}\``);
+    // Step 3: With per-source execution, multi-source queries use "multi-source-optimized" API
+    // and the executed SQL shows the original base query template (not expanded UNION SQL)
+    expect(responseText).toContain('API used: multi-source-optimized');
 
-    // Step 4: Verify union query URL (no optimization parameters for union queries)
-    // Source group union queries use the base ClickHouse endpoint without additional URL parameters
-    const expectedUrl = "https://clickhouse.betterstack.com/";
-    expect(responseText).toContain(`Request URL: ${expectedUrl}`);
+    // Step 4: Verify all 3 sources in Development Environment group are queried
+    expect(responseText).toContain("Spark - staging | deprecated");
+    expect(responseText).toContain("Frontend Application");
+    expect(responseText).toContain("Database Service");
 
-    // Step 5: Verify that union query URL does NOT contain historical optimization parameters
-    // This ensures we're truly using the base URL and not accidentally using historical format
-    expect(responseText).not.toContain("range-from=");
-    expect(responseText).not.toContain("range-to=");
-    expect(responseText).not.toContain("table=");
+    // Step 5: Verify the executed SQL shows the original base query template
+    expect(responseText).toContain("SELECT dt, raw FROM union_subquery WHERE");
+    expect(responseText).toContain("ilike(raw, '%service%')");
+    expect(responseText).toContain('ilike(raw, \'%"level":"info"%\')');
+    expect(responseText).toContain("dt >= now() - INTERVAL 12 HOUR");
+
+    // Step 6: Request URL is 'unknown' for multi-source-optimized (no single URL)
+    expect(responseText).toContain("Request URL: unknown");
   });
 
   it("Source Group Historical Pipeline: Step-by-step validation", async () => {

@@ -205,6 +205,8 @@ describe('Compact Query Workflow Integration Tests', () => {
       const cacheId = cacheIdMatch![1];
 
       // Step 2: Get details for first log (index 0)
+      // With per-source execution, results are sorted by dt DESC (most recent first)
+      // so index 0 is the 10:01:00Z entry (Second log) and index 1 is the 10:00:00Z entry (First log)
       const detailResult0 = await mcpHelper.callTool('get_log_details', {
         cache_id: cacheId,
         log_index: 0
@@ -213,10 +215,10 @@ describe('Compact Query Workflow Integration Tests', () => {
       const detailText0 = detailResult0.content[0].text;
       expect(detailText0).toContain('Log Details (Index 0)');
       expect(detailText0).toContain(`Cache ID: ${cacheId}`);
-      expect(detailText0).toContain('Timestamp: 2024-01-01T10:00:00Z');
+      expect(detailText0).toContain('Timestamp: 2024-01-01T10:01:00Z');
       expect(detailText0).toContain('**Full Raw Data:**');
-      expect(detailText0).toContain('"user_id":123');
-      expect(detailText0).toContain('"action":"login"');
+      expect(detailText0).toContain('"code":500');
+      expect(detailText0).toContain('"stack":"Error trace here"');
 
       // Step 3: Get details for second log (index 1)
       const detailResult1 = await mcpHelper.callTool('get_log_details', {
@@ -226,9 +228,9 @@ describe('Compact Query Workflow Integration Tests', () => {
 
       const detailText1 = detailResult1.content[0].text;
       expect(detailText1).toContain('Log Details (Index 1)');
-      expect(detailText1).toContain('Timestamp: 2024-01-01T10:01:00Z');
-      expect(detailText1).toContain('"code":500');
-      expect(detailText1).toContain('"stack":"Error trace here"');
+      expect(detailText1).toContain('Timestamp: 2024-01-01T10:00:00Z');
+      expect(detailText1).toContain('"user_id":123');
+      expect(detailText1).toContain('"action":"login"');
     });
 
     it('should handle invalid cache ID', async () => {
