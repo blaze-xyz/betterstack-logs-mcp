@@ -758,15 +758,19 @@ export class BetterstackClient {
 
     logToFile("INFO", "Source validation results", sourceDetails);
 
-    // Route to appropriate execution strategy based on query characteristics
-    // Multi-source historical queries use per-source optimization with merging
-    if (dataType === "historical" && sources.length > 1 && options.rawFilters) {
-      logToFile("INFO", "Routing to multi-source historical query optimization", {
+    // Route ALL multi-source queries to per-source execution
+    // BetterStack's ClickHouse proxy can only handle one remote() source per query.
+    // When a single SQL references multiple remote() tables from different sources
+    // (via UNION ALL), the proxy routes the entire query to the first source's cluster,
+    // and subsequent sources fail with CLUSTER_DOESNT_EXIST.
+    if (sources.length > 1) {
+      logToFile("INFO", "Routing to per-source execution (multi-source query)", {
         sourcesCount: sources.length,
         sourceNames: sources.map(s => s.name),
+        dataType,
       });
-      
-      return await this.executeMultiSourceHistoricalQuery(query, sources, options);
+
+      return await this.executeMultiSourceQuery(query, sources, dataType, options);
     }
 
     let finalQuery = query;
@@ -1181,30 +1185,34 @@ export class BetterstackClient {
   }
 
   /**
-   * Execute multi-source historical queries with per-source optimization
-   * Each source gets its own optimized request with S3 glob interpolation
+   * Execute multi-source queries with per-source optimization.
+   * BetterStack's ClickHouse proxy routes queries to clusters based on the table
+   * name in the remote() function. A single SQL with multiple remote() tables from
+   * different sources fails because the proxy can only route to one cluster per query.
+   * This method executes each source individually, then merges and deduplicates results.
+   * For historical queries, S3 time range URL params are applied for optimization.
    */
-  private async executeMultiSourceHistoricalQuery(
+  private async executeMultiSourceQuery(
     query: string,
     sources: (Source & { table_name: string })[],
+    dataType: DataSourceType,
     options: QueryOptions = {}
   ): Promise<QueryResult> {
-    logToFile("INFO", "Executing multi-source historical query with per-source optimization", {
+    logToFile("INFO", "Executing multi-source query with per-source optimization", {
       sourcesCount: sources.length,
       sourceNames: sources.map(s => s.name),
+      dataType,
     });
 
     // Generate individual queries for each source
     const sourceQueries = sources.map(source => {
-      // Build single-source query
-      const singleSourceQuery = this.buildMultiSourceQuery(query, [source], "historical");
-      
-      // Generate time range params for this specific source
-      const timeRangeParams = extractTimeRangeParams(
-        options.rawFilters,
-        [source],
-        "historical"
-      );
+      // Build single-source query using the actual dataType
+      const singleSourceQuery = this.buildMultiSourceQuery(query, [source], dataType);
+
+      // Generate time range params only for historical queries (s3 optimization)
+      const timeRangeParams = dataType === "historical"
+        ? extractTimeRangeParams(options.rawFilters, [source], "historical")
+        : null;
 
       return {
         source,
@@ -1235,6 +1243,11 @@ export class BetterstackClient {
           requestUrl = `/?${urlParams.toString()}`;
         }
 
+        // Add LIMIT if specified and not already present in individual source query
+        if (options.limit && !finalQuery.toLowerCase().includes("limit")) {
+          finalQuery += ` LIMIT ${options.limit}`;
+        }
+
         // Apply JSON format for API call
         if (!finalQuery.toLowerCase().includes("format")) {
           finalQuery += " FORMAT JSON";
@@ -1243,8 +1256,8 @@ export class BetterstackClient {
         }
 
         const fullRequestUrl = this.config.clickhouseQueryEndpoint + requestUrl;
-        
-        logToFile("INFO", "Making optimized request for source", {
+
+        logToFile("INFO", "Making per-source request", {
           sourceName: source.name,
           requestUrl,
           fullRequestUrl,

@@ -9,7 +9,7 @@ describe("Multi-Source Optimization", () => {
 
   beforeEach(() => {
     client = new BetterstackClient(createTestConfig());
-    
+
     // Create mock sources for testing
     mockSources = [
       {
@@ -21,20 +21,20 @@ describe("Multi-Source Optimization", () => {
         team_id: 123,
       },
       {
-        id: "source2", 
+        id: "source2",
         name: "Source 2",
         platform: "ubuntu",
         retention_days: 30,
-        table_name: "t123_source2_logs", 
+        table_name: "t123_source2_logs",
         team_id: 123,
       }
     ];
   });
 
-  describe("Multi-source historical query routing", () => {
-    it("should route to multi-source optimization for multiple sources with historical data type", async () => {
-      // Mock the executeMultiSourceHistoricalQuery method to track if it was called
-      const executeMultiSourceSpy = vi.spyOn(client as any, "executeMultiSourceHistoricalQuery");
+  describe("Multi-source query routing", () => {
+    it("should route to per-source execution for multiple sources with historical data type", async () => {
+      // Mock the executeMultiSourceQuery method to track if it was called
+      const executeMultiSourceSpy = vi.spyOn(client as any, "executeMultiSourceQuery");
       executeMultiSourceSpy.mockResolvedValue({
         data: [{ dt: "2025-07-28T13:00:00Z", raw: "Test log" }],
         meta: {
@@ -71,23 +71,24 @@ describe("Multi-Source Optimization", () => {
         options
       );
 
-      // Verify that multi-source optimization was triggered
+      // Verify that per-source execution was triggered with dataType
       expect(executeMultiSourceSpy).toHaveBeenCalledWith(
         expect.stringContaining("SELECT dt, raw FROM logs"),
         mockSources,
+        "historical",
         options
       );
 
       expect(result.meta?.api_used).toBe("multi-source-optimized");
       expect(result.meta?.sources_queried).toEqual(["Source 1", "Source 2"]);
-      
+
       executeMultiSourceSpy.mockRestore();
       buildQuerySpy.mockRestore();
     });
 
-    it("should not route to multi-source optimization for single source", async () => {
-      const executeMultiSourceSpy = vi.spyOn(client as any, "executeMultiSourceHistoricalQuery");
-      
+    it("should not route to per-source execution for single source", async () => {
+      const executeMultiSourceSpy = vi.spyOn(client as any, "executeMultiSourceQuery");
+
       // Mock the regular API request
       const mockPost = vi.fn().mockResolvedValue({
         data: { data: [{ dt: "2025-07-28T13:00:00Z", raw: "Test log" }] }
@@ -117,20 +118,22 @@ describe("Multi-Source Optimization", () => {
         options
       );
 
-      // Verify that multi-source optimization was NOT triggered
+      // Verify that per-source execution was NOT triggered for single source
       expect(executeMultiSourceSpy).not.toHaveBeenCalled();
-      
+
       executeMultiSourceSpy.mockRestore();
     });
 
-    it("should not route to multi-source optimization for recent data type", async () => {
-      const executeMultiSourceSpy = vi.spyOn(client as any, "executeMultiSourceHistoricalQuery");
-      
-      // Mock the regular API request
-      const mockPost = vi.fn().mockResolvedValue({
-        data: { data: [{ dt: "2025-07-28T13:00:00Z", raw: "Test log" }] }
+    it("should route to per-source execution for multiple sources with recent data type", async () => {
+      const executeMultiSourceSpy = vi.spyOn(client as any, "executeMultiSourceQuery");
+      executeMultiSourceSpy.mockResolvedValue({
+        data: [{ dt: "2025-07-28T13:00:00Z", raw: "Test log" }],
+        meta: {
+          total_rows: 1,
+          sources_queried: ["Source 1", "Source 2"],
+          api_used: "multi-source-optimized",
+        },
       });
-      (client as any).queryClient.post = mockPost;
 
       const query = "SELECT dt, raw FROM logs WHERE level = 'ERROR'";
       const options = {
@@ -146,15 +149,20 @@ describe("Multi-Source Optimization", () => {
         options
       );
 
-      // Verify that multi-source optimization was NOT triggered for recent data
-      expect(executeMultiSourceSpy).not.toHaveBeenCalled();
-      
+      // Verify that per-source execution IS triggered for recent data with multiple sources
+      expect(executeMultiSourceSpy).toHaveBeenCalledWith(
+        expect.stringContaining("SELECT dt, raw FROM logs"),
+        mockSources,
+        "recent",
+        options
+      );
+
       executeMultiSourceSpy.mockRestore();
     });
   });
 
-  describe("executeMultiSourceHistoricalQuery", () => {
-    it("should execute parallel optimized requests for each source", async () => {
+  describe("executeMultiSourceQuery", () => {
+    it("should execute sequential requests for each source", async () => {
       // Mock the buildMultiSourceQuery method
       const buildQuerySpy = vi.spyOn(client, "buildMultiSourceQuery");
       buildQuerySpy.mockImplementation((query, sources) => {
@@ -170,7 +178,7 @@ describe("Multi-Source Optimization", () => {
         .mockResolvedValueOnce({
           data: { data: [{ dt: "2025-07-28T15:00:00Z", raw: "Log from source 2" }] }
         });
-      
+
       (client as any).queryClient.post = mockPost;
       (BetterstackClient as any).rateLimiter = (fn: () => any) => fn();
 
@@ -187,15 +195,16 @@ describe("Multi-Source Optimization", () => {
         limit: 50,
       };
 
-      const result = await (client as any).executeMultiSourceHistoricalQuery(
+      const result = await (client as any).executeMultiSourceQuery(
         query,
         mockSources,
+        "historical",
         options
       );
 
       // Verify that both sources were queried
       expect(mockPost).toHaveBeenCalledTimes(2);
-      
+
       // Verify the result structure
       expect(result.data).toHaveLength(2);
       expect(result.meta?.api_used).toBe("multi-source-optimized");
@@ -207,7 +216,7 @@ describe("Multi-Source Optimization", () => {
       expect(new Date(result.data[0].dt).getTime()).toBeGreaterThan(
         new Date(result.data[1].dt).getTime()
       );
-      
+
       buildQuerySpy.mockRestore();
     });
 
@@ -222,16 +231,17 @@ describe("Multi-Source Optimization", () => {
           data: { data: [{ dt: "2025-07-28T13:00:00Z", raw: "Success log" }] }
         })
         .mockRejectedValueOnce(new Error("Source 2 failed"));
-      
+
       (client as any).queryClient.post = mockPost;
       (BetterstackClient as any).rateLimiter = (fn: () => any) => fn();
 
       const query = "SELECT dt, raw FROM logs WHERE level = 'ERROR'";
       const options = { limit: 50 };
 
-      const result = await (client as any).executeMultiSourceHistoricalQuery(
+      const result = await (client as any).executeMultiSourceQuery(
         query,
         mockSources,
+        "historical",
         options
       );
 
@@ -242,7 +252,7 @@ describe("Multi-Source Optimization", () => {
       expect(result.meta?._multiSourceStats?.totalSources).toBe(2);
       expect(result.meta?._failedSources).toHaveLength(1);
       expect(result.meta?._failedSources?.[0].source).toBe("Source 2");
-      
+
       buildQuerySpy.mockRestore();
     });
 
@@ -254,43 +264,44 @@ describe("Multi-Source Optimization", () => {
       // Mock responses with duplicate entries
       const mockPost = vi.fn()
         .mockResolvedValueOnce({
-          data: { 
+          data: {
             data: [
               { dt: "2025-07-28T13:00:00Z", raw: "Duplicate log" },
               { dt: "2025-07-28T14:00:00Z", raw: "Unique log 1" }
-            ] 
+            ]
           }
         })
         .mockResolvedValueOnce({
-          data: { 
+          data: {
             data: [
               { dt: "2025-07-28T13:00:00Z", raw: "Duplicate log" },  // Same as first source
               { dt: "2025-07-28T15:00:00Z", raw: "Unique log 2" }
-            ] 
+            ]
           }
         });
-      
+
       (client as any).queryClient.post = mockPost;
       (BetterstackClient as any).rateLimiter = (fn: () => any) => fn();
 
       const query = "SELECT dt, raw FROM logs";
       const options = { limit: 50 };
 
-      const result = await (client as any).executeMultiSourceHistoricalQuery(
+      const result = await (client as any).executeMultiSourceQuery(
         query,
         mockSources,
+        "recent",
         options
       );
 
       // Verify deduplication - should have 3 unique entries, not 4
       expect(result.data).toHaveLength(3);
-      
+
       // Verify all unique combinations are present
       const logMessages = result.data.map((entry: any) => entry.raw);
       expect(logMessages).toContain("Duplicate log");
       expect(logMessages).toContain("Unique log 1");
       expect(logMessages).toContain("Unique log 2");
-      
+
       buildQuerySpy.mockRestore();
     });
 
@@ -302,43 +313,44 @@ describe("Multi-Source Optimization", () => {
       // Mock responses with multiple entries
       const mockPost = vi.fn()
         .mockResolvedValueOnce({
-          data: { 
+          data: {
             data: [
               { dt: "2025-07-28T13:00:00Z", raw: "Log 1" },
               { dt: "2025-07-28T14:00:00Z", raw: "Log 2" }
-            ] 
+            ]
           }
         })
         .mockResolvedValueOnce({
-          data: { 
+          data: {
             data: [
               { dt: "2025-07-28T15:00:00Z", raw: "Log 3" },
               { dt: "2025-07-28T16:00:00Z", raw: "Log 4" }
-            ] 
+            ]
           }
         });
-      
+
       (client as any).queryClient.post = mockPost;
       (BetterstackClient as any).rateLimiter = (fn: () => any) => fn();
 
       const query = "SELECT dt, raw FROM logs";
       const options = { limit: 3 };  // Limit to 3 entries
 
-      const result = await (client as any).executeMultiSourceHistoricalQuery(
+      const result = await (client as any).executeMultiSourceQuery(
         query,
         mockSources,
+        "union",
         options
       );
 
       // Verify limit was applied after merging
       expect(result.data).toHaveLength(3);
-      
+
       // Verify results are sorted by timestamp (descending) and limited
       expect(result.data[0].raw).toBe("Log 4");  // Most recent
       expect(result.data[1].raw).toBe("Log 3");
       expect(result.data[2].raw).toBe("Log 2");
       // Log 1 should be excluded due to limit
-      
+
       buildQuerySpy.mockRestore();
     });
   });
