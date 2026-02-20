@@ -2,16 +2,15 @@ name: Publish
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch:
+    branches:
+      - main
 
 jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write  # Needed to push version bump back to main
       id-token: write  # Required for OIDC trusted publishing
 
     steps:
@@ -30,6 +29,17 @@ jobs:
 
       - name: Run unit tests
         run: npm run test:unit
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump patch version
+        run: npm version patch -m "chore: bump version to %s [skip ci]"
+
+      - name: Push version bump
+        run: git push
 
       - name: Publish to npm
         run: npm publish --access public
