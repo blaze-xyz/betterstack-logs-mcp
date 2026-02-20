@@ -30,6 +30,17 @@ describe('Get Source Info Integration Tests', () => {
       expect(text).toContain('Updated: 1/15/2024')
     })
 
+    it('should return source information when looking up by name via MCP protocol', async () => {
+      const result = await mcpHelper.callTool('get_source_info', { source_id: 'Production API Server' })
+
+      expect(result.content[0].type).toBe('text')
+      const text = result.content[0].text
+      expect(text).toContain('**Source: Production API Server**')
+      expect(text).toContain('ID: 1021716')
+      expect(text).toContain('Platform: linux')
+      expect(text).toContain('Retention: 30 days')
+    })
+
     it('should handle non-existent source ID via MCP protocol', async () => {
       const result = await mcpHelper.callTool('get_source_info', { source_id: 'nonexistent' })
 
