@@ -1,7 +1,9 @@
 name: Publish
 
 on:
-  push:
+  pull_request:
+    types:
+      - closed
     branches:
       - main
 
@@ -9,6 +11,7 @@ jobs:
   publish:
     name: Publish to npm
     runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
     permissions:
       contents: write  # Needed to push version bump back to main
       id-token: write  # Required for OIDC trusted publishing
@@ -16,6 +19,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: main  # Ensure we're on the latest main after merge
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -30,13 +35,25 @@ jobs:
       - name: Run unit tests
         run: npm run test:unit
 
+      - name: Determine version bump type
+        id: bump_type
+        run: |
+          LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          if echo "$LABELS" | grep -q '"major"'; then
+            echo "bump=major" >> $GITHUB_OUTPUT
+          elif echo "$LABELS" | grep -q '"minor"'; then
+            echo "bump=minor" >> $GITHUB_OUTPUT
+          else
+            echo "bump=patch" >> $GITHUB_OUTPUT
+          fi
+
       - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Bump patch version
-        run: npm version patch -m "chore: bump version to %s [skip ci]"
+      - name: Bump version
+        run: npm version ${{ steps.bump_type.outputs.bump }} -m "chore: bump version to %s [skip ci]"
 
       - name: Push version bump
         run: git push
