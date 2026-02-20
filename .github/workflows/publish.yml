@@ -1,0 +1,94 @@
+name: Publish to npm
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  check-version:
+    name: Check if version needs publishing
+    runs-on: ubuntu-latest
+    outputs:
+      should_publish: ${{ steps.version_check.outputs.should_publish }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check published version vs package.json
+        id: version_check
+        run: |
+          LOCAL_VERSION=$(node -p "require('./package.json').version")
+          PACKAGE_NAME=$(node -p "require('./package.json').name")
+
+          # Get the currently published version from npm (empty string if unpublished)
+          PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version 2>/dev/null || echo "")
+
+          echo "Local version: $LOCAL_VERSION"
+          echo "Published version: $PUBLISHED_VERSION"
+
+          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
+            echo "Versions match — skipping publish."
+            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Version changed — will publish."
+            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: check-version
+    if: needs.check-version.outputs.should_publish == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: [ check-version, test ]
+    if: needs.check-version.outputs.should_publish == 'true'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+      # Requires NPM_TOKEN secret configured in repository settings
+      # (Settings > Secrets and variables > Actions > New repository secret)
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
