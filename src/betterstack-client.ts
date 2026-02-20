@@ -419,7 +419,7 @@ export class BetterstackClient {
 
   async getSourceInfo(sourceId: string): Promise<Source | null> {
     const sources = await this.listSources();
-    return sources.find((s) => s.id === sourceId) || null;
+    return sources.find((s) => s.id === sourceId || s.name === sourceId) || null;
   }
 
   async listSourceGroups(): Promise<SourceGroup[]> {
@@ -1668,8 +1668,17 @@ export class BetterstackClient {
 
     for (const source of sources) {
       const tableName = this.generateTableName(source, dataType);
-      const schema = await this.getTableSchema(tableName, dataType);
-      results.push({ source, schema, tableName });
+      try {
+        const schema = await this.getTableSchema(tableName, dataType);
+        results.push({ source, schema, tableName });
+      } catch (error: any) {
+        logToFile("WARN", "Failed to fetch schema for source, continuing with remaining sources", {
+          source: source.name,
+          tableName,
+          error: error.message,
+        });
+        results.push({ source, schema: null, tableName });
+      }
     }
 
     return results;

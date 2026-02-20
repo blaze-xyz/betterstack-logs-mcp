@@ -25,12 +25,19 @@ describe('Get Source Info Tool', () => {
     })
 
     it('should return source info when searching by name', async () => {
-      const sources = await client.listSources()
-      const targetSource = sources.find(s => s.name === "Production API Server")
-      
-      expect(targetSource).toBeTruthy()
-      expect(targetSource?.platform).toBe("linux")
-      expect(targetSource?.retention_days).toBe(30)
+      const sourceInfo = await client.getSourceInfo("Production API Server")
+
+      expect(sourceInfo).toBeTruthy()
+      expect(sourceInfo?.id).toBe("1021716")
+      expect(sourceInfo?.platform).toBe("linux")
+      expect(sourceInfo?.retention_days).toBe(30)
+    })
+
+    it('should prefer ID match over name match', async () => {
+      const sourceInfo = await client.getSourceInfo("1021715")
+
+      expect(sourceInfo).toBeTruthy()
+      expect(sourceInfo?.name).toBe("Spark - staging | deprecated")
     })
   })
 })
