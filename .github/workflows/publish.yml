@@ -5,41 +5,28 @@ on:
     branches: [ main ]
 
 jobs:
-  check-version:
-    name: Check if version needs publishing
+  # Skip if this is an automated version bump commit
+  check-trigger:
+    name: Check trigger
     runs-on: ubuntu-latest
     outputs:
-      should_publish: ${{ steps.version_check.outputs.should_publish }}
-
+      should_run: ${{ steps.check.outputs.should_run }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Check published version vs package.json
-        id: version_check
+      - name: Skip automated commits
+        id: check
         run: |
-          LOCAL_VERSION=$(node -p "require('./package.json').version")
-          PACKAGE_NAME=$(node -p "require('./package.json').name")
-
-          # Get the currently published version from npm (empty string if unpublished)
-          PUBLISHED_VERSION=$(npm view "$PACKAGE_NAME" version 2>/dev/null || echo "")
-
-          echo "Local version: $LOCAL_VERSION"
-          echo "Published version: $PUBLISHED_VERSION"
-
-          if [ "$LOCAL_VERSION" = "$PUBLISHED_VERSION" ]; then
-            echo "Versions match — skipping publish."
-            echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          if echo "${{ github.event.head_commit.message }}" | grep -q "\[skip ci\]"; then
+            echo "Automated version bump commit — skipping."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
           else
-            echo "Version changed — will publish."
-            echo "should_publish=true" >> "$GITHUB_OUTPUT"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
           fi
 
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    needs: check-version
-    if: needs.check-version.outputs.should_publish == 'true'
+    needs: check-trigger
+    if: needs.check-trigger.outputs.should_run == 'true'
 
     steps:
       - name: Checkout code
@@ -64,14 +51,16 @@ jobs:
         run: npm run test:integration
 
   publish:
-    name: Publish to npm
+    name: Bump Version & Publish to npm
     runs-on: ubuntu-latest
-    needs: [ check-version, test ]
-    if: needs.check-version.outputs.should_publish == 'true'
+    needs: [ check-trigger, test ]
+    if: needs.check-trigger.outputs.should_run == 'true'
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -86,9 +75,30 @@ jobs:
       - name: Build project
         run: npm run build
 
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      # Auto-bump patch version (1.0.7 → 1.0.8 → 1.0.9 ...)
+      # For minor/major bumps, manually set the version in your PR instead
+      - name: Bump patch version
+        run: |
+          OLD_VERSION=$(node -p "require('./package.json').version")
+          npm version patch --no-git-tag-version
+          NEW_VERSION=$(node -p "require('./package.json').version")
+          echo "Bumped $OLD_VERSION → $NEW_VERSION"
+          echo "NEW_VERSION=$NEW_VERSION" >> "$GITHUB_ENV"
+
       # Requires NPM_TOKEN secret configured in repository settings
       # (Settings > Secrets and variables > Actions > New repository secret)
       - name: Publish to npm
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Commit and push version bump
+        run: |
+          git add package.json package-lock.json
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push
